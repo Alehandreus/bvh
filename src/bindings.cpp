@@ -94,6 +94,51 @@ PYBIND11_MODULE(bvh, m) {
 
             return std::make_tuple(mask, leaf_indices, t_enters, t_exits);
         })
+        .def("intersect_segments", [](
+            BVH& self,
+            py::array_t<float> points_start,
+            py::array_t<float> points_end,
+            int n_segments
+        ) {
+            // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
+
+            auto points_start_buf = points_start.request();
+            auto points_end_buf = points_end.request();
+
+            int n_rays = points_start_buf.shape[0];
+
+            if (points_end_buf.shape[0] != n_rays) {
+                throw std::runtime_error("Mismatched shapes!");
+            }
+
+            if (points_start_buf.ndim != 2 || points_start_buf.shape[1] != 3) {
+                throw std::runtime_error("points_start must have shape (N,3)");
+            }
+
+            if (points_start_buf.itemsize != sizeof(float)) {
+                throw std::runtime_error("points_start must have dtype float32");
+            }
+
+            if (points_end_buf.ndim != 2 || points_end_buf.shape[1] != 3) {
+                throw std::runtime_error("points_end must have shape (N,3)");
+            }
+
+            if (points_end_buf.itemsize != sizeof(float)) {
+                throw std::runtime_error("points_end must have dtype float32");
+            }
+
+            glm::vec3 *points_start_ptr = (glm::vec3 *) points_start.request().ptr;
+            glm::vec3 *points_end_ptr = (glm::vec3 *) points_end.request().ptr;
+
+            py::array_t<bool> segments({n_rays, n_segments});
+            bool *segments_ptr = (bool *) segments.request().ptr;
+
+            for (int i = 0; i < n_rays; ++i) {
+                self.intersect_segments(points_start_ptr[i], points_end_ptr[i], n_segments, segments_ptr + n_segments * i);
+            }
+
+            return segments;            
+        })
         .def("depth", py::overload_cast<>(&BVH::depth))
         .def("n_nodes", &BVH::n_nodes)
         .def("n_leaves", py::overload_cast<>(&BVH::n_leaves));

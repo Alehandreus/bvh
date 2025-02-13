@@ -149,6 +149,9 @@ struct BVH {
     
     std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
     intersect_leaves(const glm::vec3& o, const glm::vec3& d, int& stack_size, uint32_t* stack); // bvh traversal, stack_size and stack are altered
+
+    // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
+    int intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_segments, bool* segments);
 };
 
 

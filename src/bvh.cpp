@@ -336,16 +336,32 @@ int BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_
         if (nodes[node_idx].is_leaf()) {
             auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[node_idx].min, nodes[node_idx].max);
 
-            uint32_t segment1 = (uint32_t) (t1 * n_segments);
-            uint32_t segment2 = (uint32_t) (t2 * n_segments) + 1;
+            // std::cout << "d1: " << t1 * glm::length(d) << "; d2: " << t2 * glm::length(d) << std::endl;
+
+            float eps = 1e-3;
+
+            t1 = std::max(t1, -eps);
+            t2 = std::max(t2, -eps);
+
+            uint32_t segment1 = (uint32_t) ((t1 - eps) * n_segments);
+            uint32_t segment2 = (uint32_t) ((t2 + eps) * n_segments) + 1;
+
+            // std::cout << "t1: " << t1 << "; t2: " << t2 << std::endl;
+            // std::cout << "segment1: " << segment1 << "; segment2: " << segment2 << std::endl;
+
+            // if (t1 < 0 || t2 < 0) {
+            //     std::cout << "t1: " << t1 << "; t2: " << t2 << std::endl;
+            // }
 
             segment1 = std::clamp(segment1, 0u, (uint32_t) n_segments - 1);
             segment2 = std::clamp(segment2, 1u, (uint32_t) n_segments);
 
-            if (segment1 <= segment2) {
+            if (segment1 < segment2) {
                 std::fill(segments + segment1, segments + segment2, true);
                 closest_segment = std::min(closest_segment, segment1);
-            } {
+            } else {
+                std::cout << "t1: " << t1 << "; t2: " << t2 << std::endl;
+                std::cout << "segment1: " << segment1 << "; segment2: " << segment2 << std::endl;
                 // what happened?
             }           
 

@@ -10,6 +10,7 @@ ext_modules = [
         ],
         include_dirs=["include"],
         libraries=["assimp"],
+        extra_compile_args=["-fopenmp"],
     ),
 ]
 

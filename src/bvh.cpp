@@ -316,7 +316,6 @@ ray_box_intersection(const glm::vec3 &o, const glm::vec3 &d, const glm::vec3 &mi
 // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
 // BVH::intersect_leaves with modifications
 int BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_segments, bool* segments) {
-
     std::vector<uint32_t> stack(max_depth, 0);
     int stack_size = 1;
     uint32_t closest_segment = n_segments;
@@ -337,15 +336,18 @@ int BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_
         if (nodes[node_idx].is_leaf()) {
             auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[node_idx].min, nodes[node_idx].max);
 
-            uint32_t segment1 = (uint32_t) (t1 / glm::length(d) * n_segments);
-            uint32_t segment2 = (uint32_t) (t2 / glm::length(d) * n_segments) + 1;
+            uint32_t segment1 = (uint32_t) (t1 * n_segments);
+            uint32_t segment2 = (uint32_t) (t2 * n_segments) + 1;
 
             segment1 = std::clamp(segment1, 0u, (uint32_t) n_segments - 1);
             segment2 = std::clamp(segment2, 1u, (uint32_t) n_segments);
 
-            std::fill(segments + segment1, segments + segment2, true);
-
-            closest_segment = std::min(closest_segment, segment1);
+            if (segment1 <= segment2) {
+                std::fill(segments + segment1, segments + segment2, true);
+                closest_segment = std::min(closest_segment, segment1);
+            } {
+                // what happened?
+            }           
 
             continue;
         }

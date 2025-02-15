@@ -1,5 +1,5 @@
 ### BVH Tree
-Super-early release. No selection criteria, no cuda, no triangle intersection, nothing.
+BVH implementation for [neural-intersection](https://github.com/Alehandreus/neural-intersection) repo. Super-early release. Trivial selection criteria, no cuda, no triangle intersection, (almost) nothing.
 
 But GUESS WHAT? PYTHON BINDINGS ARE ALREADY HERE! See `tests/test.py`
 
@@ -20,16 +20,12 @@ make release
 make run
 ```
 
-<div style="display: flex; justify-content: space-between;">
-    <div></div>
-    <img src="https://i.imgur.com/yh6rj9C.png" alt="no image?" style="width: 100%; height: auto;"/>
-    <div></div>
-</div>
+## Examples
 
-<hr>
+<img src="https://i.imgur.com/yh6rj9C.png" alt="no image?" style="width: 100%;"/>
 
-<div style="display: flex; justify-content: space-between;">
-    <img src="https://i.imgur.com/HoO3BY0.png" alt="no image?" style="width: 49%; height: auto;"/>
-    <img src="https://i.imgur.com/sVzMaJX.png" alt="no image?" style="width: 49%; height: auto;"/>
+<div style="display: flex;">
+    <img src="https://i.imgur.com/HoO3BY0.png" alt="no image?" style="width: 50%;"/>
+    <img src="https://i.imgur.com/sVzMaJX.png" alt="no image?" style="width: 50%;"/>
 </div>
 

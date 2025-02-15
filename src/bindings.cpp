@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <omp.h>
 
 #include <tuple>
 
@@ -78,6 +79,7 @@ PYBIND11_MODULE(bvh, m) {
             float *t_enters_ptr = (float *) t_enters.request().ptr;
             float *t_exits_ptr = (float *) t_exits.request().ptr;
 
+            #pragma omp parallel for
             for (int i = 0; i < n_rays; ++i) {
                 auto [mask, leaf_index, t_enter, t_exit] = self.intersect_leaves(
                     ray_origins_ptr[i],
@@ -133,6 +135,7 @@ PYBIND11_MODULE(bvh, m) {
             py::array_t<bool> segments({n_rays, n_segments});
             bool *segments_ptr = (bool *) segments.request().ptr;
 
+            #pragma omp parallel for
             for (int i = 0; i < n_rays; ++i) {
                 self.intersect_segments(points_start_ptr[i], points_end_ptr[i], n_segments, segments_ptr + n_segments * i);
             }

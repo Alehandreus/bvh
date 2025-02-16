@@ -38,6 +38,8 @@ void BVH::build_bvh(int max_depth) {
     depth = 1;
 
     grow_bvh(0, depth, max_depth);
+
+    nodes.resize(n_nodes);
 }
 
 void BVH::grow_bvh(uint32_t node_idx, int cur_depth, int max_depth) {

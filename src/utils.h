@@ -11,6 +11,18 @@ struct Face {
         centroid = (vertices[v1] + vertices[v2] + vertices[v3]) / 3.0f;
     }
 
+    float extent(const glm::vec3 *vertices) const {
+        glm::vec3 min = vertices[v1];
+        glm::vec3 max = vertices[v1];
+
+        for (int i = 1; i < 3; i++) {
+            min = glm::min(min, vertices[operator[](i)]);
+            max = glm::max(max, vertices[operator[](i)]);
+        }
+
+        return glm::length(max - min);
+    }
+
     uint32_t operator[](uint32_t i) const {
         switch (i) {
             case 0: return v1;

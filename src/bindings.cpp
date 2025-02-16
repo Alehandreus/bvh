@@ -12,6 +12,8 @@ PYBIND11_MODULE(bvh, m) {
     py::class_<BVH>(m, "BVH")
         .def(py::init<>())
         .def("load_scene", &BVH::load_scene)
+        .def("split_faces", &BVH::split_faces)
+        .def("memory_bytes", &BVH::memory_bytes)
         .def("build_bvh", &BVH::build_bvh)
         .def("save_as_obj", &BVH::save_as_obj)
         .def("intersect_leaves", [](

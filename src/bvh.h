@@ -11,6 +11,7 @@
 #include <functional>
 #include <unordered_set>
 #include <algorithm>
+#include <tuple>
 
 #include "utils.h"
 
@@ -47,6 +48,46 @@ struct Mesh {
                 for (int index_i = 0; index_i < face.mNumIndices; index_i++) {
                     faces.push_back({face.mIndices[0], face.mIndices[1], face.mIndices[2]});
                 }
+            }
+        }
+    }
+
+    void split_faces(float frac) {
+        std::vector<float> extents;
+        for (int i = 0; i < faces.size(); i++) {
+            Face &face = faces[i];
+            float extent = face.extent(vertices.data());
+            extents.push_back(extent);
+        }
+
+        std::sort(extents.begin(), extents.end());
+
+        float threshold = extents[extents.size() * frac];
+
+        for (int face_i = 0; face_i < faces.size();) {
+            Face face = faces[face_i];
+            float extent = face.extent(vertices.data());
+
+            if (extent > threshold) {
+                glm::vec3 mid1 = (vertices[face[0]] + vertices[face[1]]) / 2.0f;
+                glm::vec3 mid2 = (vertices[face[1]] + vertices[face[2]]) / 2.0f;
+                glm::vec3 mid3 = (vertices[face[2]] + vertices[face[0]]) / 2.0f;
+
+                Face new_face1 = {face[0], vertices.size(), vertices.size() + 2};
+                Face new_face2 = {vertices.size(), face[1], vertices.size() + 1};
+                Face new_face3 = {vertices.size() + 2, vertices.size() + 1, face[2]};
+                Face new_face4 = {vertices.size(), vertices.size() + 1, vertices.size() + 2};
+
+                faces[face_i] = new_face1;
+                faces.push_back(new_face2);
+                faces.push_back(new_face3);
+                faces.push_back(new_face4);
+
+                vertices.push_back(mid1);
+                vertices.push_back(mid2);
+                vertices.push_back(mid3);
+            } else {
+                face_i++;
             }
         }
     }
@@ -109,6 +150,14 @@ struct BVH {
 
     void load_scene(const char *path) {
         mesh.load_scene(path);
+    }
+
+    void split_faces(float frac) {
+        mesh.split_faces(frac);
+    }
+
+    int memory_bytes() {
+        return nodes.size() * sizeof(nodes[0]);
     }
 
     void build_bvh(int max_depth); // inits root and grows bvh

@@ -52,8 +52,8 @@ mask_img = mask.reshape(resolution, resolution)
 
 image = np.zeros((resolution, resolution, 3))
 
-print("Number of nodes: ", loader.n_nodes())
-print("Number of leaves: ", loader.n_leaves())
+print("Number of nodes: ", loader.n_nodes)
+print("Number of leaves: ", loader.n_leaves)
 
 # ==== outline ====
 outline = leaf_indices.reshape(resolution, resolution)

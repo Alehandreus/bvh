@@ -12,37 +12,16 @@
 #include <unordered_set>
 #include <algorithm>
 
+#include "utils.h"
 
 using std::cin, std::cout, std::endl;
 
-
-const float TRIANGLE_INTERSECTION_COST = 1.0f;
-const float TRAVERSAL_COST = 1.0f;
-
-
-struct Face {
-    unsigned v1, v2, v3;
-    Face(unsigned v1, unsigned v2, unsigned v3) : v1(v1), v2(v2), v3(v3) {}
-    unsigned operator[](unsigned i) const {
-        switch (i) {
-            case 0: return v1;
-            case 1: return v2;
-            case 2: return v3;
-            default: return 0;
-        }
-    }
-};
-
-
+// https://learnopengl.com/Model-Loading/Model
 struct Mesh {
     std::vector<glm::vec3> vertices;
     std::vector<Face> faces;
 
     Mesh() {}
-
-    Mesh(const char *scene_path) {
-        load_scene(scene_path);
-    }
 
     void load_scene(const char *scene_path) {
         Assimp::Importer importer;
@@ -73,25 +52,26 @@ struct Mesh {
     }
 };
 
-
-std::tuple<bool, float, float> // mask, t_enter, t_exit
-ray_box_intersection(const glm::vec3 &o, const glm::vec3 &d, const glm::vec3 &min, const glm::vec3 &max);
-
-
 struct BVHNode {
     glm::vec3 min, max;
-    int left, right;
-    std::vector<Face> faces;
+    uint32_t left_first_prim;
+    uint32_t n_prims;
 
     BVHNode() {
-        left = -1;
-        right = -1;
         min = glm::vec3(FLT_MAX);
         max = glm::vec3(-FLT_MAX);
     }
 
-    int is_leaf() const {
-        return left == -1 && right == -1;
+    inline bool is_leaf() const {
+        return n_prims > 0;
+    }
+
+    inline uint32_t left() const {
+        return left_first_prim;
+    }
+
+    inline uint32_t right() const {
+        return left_first_prim + 1;
     }
 
     bool inside(glm::vec3 point) const {
@@ -99,61 +79,47 @@ struct BVHNode {
                point.y >= min.y && point.y <= max.y &&
                point.z >= min.z && point.z <= max.z;
     }
+
+    void update_bounds(const Face *faces, const glm::vec3 *vertices, const uint32_t *prim_idxs) {
+        min = glm::vec3(FLT_MAX);
+        max = glm::vec3(-FLT_MAX);
+
+        for (int prim_i = left_first_prim; prim_i < left_first_prim + n_prims; prim_i++) {
+            const Face &face = faces[prim_idxs[prim_i]];
+
+            for (int j = 0; j < 3; j++) {
+                const glm::vec3 &vertex = vertices[face[j]];
+                min = glm::min(min, vertex);
+                max = glm::max(max, vertex);
+            }
+        }
+    }
 };
 
-
 struct BVH {
-    int max_depth = 15;
-
     Mesh mesh;
     std::vector<BVHNode> nodes;
+    std::vector<uint32_t> prim_idxs;
+
+    int depth;
+    int n_nodes;
+    int n_leaves;
 
     BVH() {}
 
     void load_scene(const char *path) {
-        mesh = Mesh(path);
+        mesh.load_scene(path);
     }
 
-    void build_bvh(int depth); // inits root and grows bvh
-    void grow_bvh(int node, int depth); // recursive function to grow bvh
-
-    int depth() {
-        return depth(0);
-    }
-    int depth(int node) {
-        if (nodes[node].is_leaf()) {
-            return 0;
-        }
-        return 1 + std::max(depth(nodes[node].left), depth(nodes[node].right));
-    }
-
-    int n_nodes() {
-        return nodes.size();
-    }
-
-    int n_leaves() {
-        return n_leaves(0);
-    }
-    int n_leaves(int node) {
-        if (nodes[node].is_leaf()) {
-            return 1;
-        }
-        int n = 0;
-        if (nodes[node].left  != -1) n += n_leaves(nodes[node].left);
-        if (nodes[node].right != -1) n += n_leaves(nodes[node].right);
-        return n;
-    }
+    void build_bvh(int max_depth); // inits root and grows bvh
+    void grow_bvh(uint32_t node, int depth, int max_depth); // recursive function to grow bvh
 
     // save leaves as boxes in .obj file
-    void save_as_obj(const std::string& filename);
+    void save_as_obj(const std::string &filename);
     
     std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-    intersect_leaves(const glm::vec3& o, const glm::vec3& d, int& stack_size, uint32_t* stack); // bvh traversal, stack_size and stack are altered
+    intersect_leaves(const glm::vec3 &ray_origin, const glm::vec3 &ray_direction, int& stack_size, uint32_t *stack); // bvh traversal, stack_size and stack are altered
 
     // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
-    int intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_segments, bool* segments);
+    void intersect_segments(const glm::vec3 &start, const glm::vec3 &end, int n_segments, bool *segments);
 };
-
-
-float leaf_cost(const BVHNode& node);
-float split_cost(const BVH& bvh, int node, int axis, const std::vector<Face>& faces_sorted, int split_i);

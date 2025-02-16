@@ -54,7 +54,7 @@ PYBIND11_MODULE(bvh, m) {
             }
 
             int given_stack_size = stack_buf.shape[1];
-            if (given_stack_size < self.max_depth) {
+            if (given_stack_size < self.depth) {
                 throw std::runtime_error("Stack size too small!");
             }
             if (ray_origins_buf.ndim != 2 || ray_origins_buf.shape[1] != 3) {
@@ -142,7 +142,7 @@ PYBIND11_MODULE(bvh, m) {
 
             return segments;            
         })
-        .def("depth", py::overload_cast<>(&BVH::depth))
-        .def("n_nodes", &BVH::n_nodes)
-        .def("n_leaves", py::overload_cast<>(&BVH::n_leaves));
+        .def_readonly("depth", &BVH::depth)
+        .def_readonly("n_nodes", &BVH::n_nodes)
+        .def_readonly("n_leaves", &BVH::n_leaves);
 }

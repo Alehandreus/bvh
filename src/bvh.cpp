@@ -1,5 +1,3 @@
-// https://learnopengl.com/Model-Loading/Model
-
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -17,189 +15,92 @@
 #include "bvh.h"
 
 
-void BVH::build_bvh(int depth) {
-    nodes.push_back(BVHNode());
-    BVHNode *root = &nodes[0];
+void BVH::build_bvh(int max_depth) {
+    int n_faces = mesh.faces.size();
 
-    root->min = glm::vec3(FLT_MAX);
-    root->max = glm::vec3(-FLT_MAX);
+    nodes.resize(n_faces * 2);
 
-    for (int i = 0; i < mesh.vertices.size(); i++) {
-        glm::vec3 vertex = mesh.vertices[i];
-        root->min = glm::min(root->min, vertex);
-        root->max = glm::max(root->max, vertex);
+    for (int i = 0; i < mesh.faces.size(); i++) {
+        prim_idxs.push_back(i);
     }
 
-    root->faces = mesh.faces;
-
-    grow_bvh(0, depth);
-}
-
-
-float leaf_cost(const BVHNode& node) {
-    return node.faces.size() * TRIANGLE_INTERSECTION_COST;
-}
-
-
-float box_area(const glm::vec3& min, const glm::vec3& max) {
-    glm::vec3 size = max - min;
-    return 2 * (size.x * size.y + size.x * size.z + size.y * size.z);
-}
-
-float box_volume(const glm::vec3& min, const glm::vec3& max) {
-    glm::vec3 size = max - min;
-    return size.x * size.y * size.z;
-}
-
-
-float split_cost(const BVH& bvh, int node, int axis, const std::vector<Face>& faces_sorted, int split_i) {
-    BVHNode left, right;
-
-    for (int j = 0; j < 3; ++j) {
-        left.min = glm::min(left.min, bvh.mesh.vertices[faces_sorted[0][j]]);
-        left.max = glm::max(left.max, bvh.mesh.vertices[faces_sorted[split_i - 1][j]]);
-
-        right.min = glm::min(right.min, bvh.mesh.vertices[faces_sorted[split_i][j]]);
-        right.max = glm::max(right.max, bvh.mesh.vertices[faces_sorted[faces_sorted.size() - 1][j]]);
+    for (int i = 0; i < n_faces; i++) {
+        mesh.faces[i].calc_centroid(mesh.vertices.data());
     }
+    
+    BVHNode& root = nodes[0];
+    root.left_first_prim = 0;
+    root.n_prims = n_faces;
+    root.update_bounds(mesh.faces.data(), mesh.vertices.data(), prim_idxs.data());
 
-    float parent_area = (bvh.nodes[node].max - bvh.nodes[node].min)[axis];
-    float left_area = (left.max - left.min)[axis];
-    float right_area = (right.max - right.min)[axis];
+    n_nodes = 1;
+    n_leaves = 0;
+    depth = 1;
 
-    // cout << "Split after " << split_i << ";" << endl;
-    // cout << "left min: " << left.min.x << " " << left.min.y << " " << left.min.z << "; left max: " << left.max.x << " " << left.max.y << " " << left.max.z << endl;
-    // cout << "right min: " << right.min.x << " " << right.min.y << " " << right.min.z << "; right max: " << right.max.x << " " << right.max.y << " " << right.max.z << endl;
-    // cout << "cost: " << (left.max - left.min)[axis] << " " << (right.max - right.min)[axis] << endl;
-
-    // return (left.max - left.min)[axis] + (right.max - right.min)[axis];
-    // return box_area(left.min, left.max) + box_area(right.min, right.max);
-
-    float left_cost = left_area / parent_area * split_i * TRIANGLE_INTERSECTION_COST;
-    float right_cost = right_area / parent_area * (faces_sorted.size() - split_i) * TRIANGLE_INTERSECTION_COST;
-
-    return TRAVERSAL_COST + left_cost + right_cost;
+    grow_bvh(0, depth, max_depth);
 }
 
+void BVH::grow_bvh(uint32_t node_idx, int cur_depth, int max_depth) {
+    BVHNode &node = nodes[node_idx];
 
-void BVH::grow_bvh(int node, int depth) {
-    BVHNode *root = &nodes[node];
-
-    if (depth <= 0 || root->faces.size() <= 1) {
-        #ifdef DEBUG
-        cout << "Child node min: " << root->min.x << " " << root->min.y << " " << root->min.z << endl;
-        cout << "Child node max: " << root->max.x << " " << root->max.y << " " << root->max.z << endl;
-        cout << endl;
-        #endif
-
+    depth = std::max(depth, cur_depth);
+    if (node.n_prims <= 2 || cur_depth >= max_depth) {
+        n_leaves++;
         return;
     }
 
-    glm::vec3 size = root->max - root->min;
+    glm::vec3 extent = node.max - node.min;
+
     int axis = 0;
-    if (size.y > size.x && size.y > size.z) {
-        axis = 1;
-    }
-    if (size.z > size.y && size.z > size.x) {
-        axis = 2;
-    }
+    if (extent.y > extent.x) axis = 1;
+    if (extent.z > extent[axis]) axis = 2;
 
-    std::vector<Face> faces_sorted = root->faces;
-    std::sort(faces_sorted.begin(), faces_sorted.end(), [&](Face a, Face b) {
-        glm::vec3 a_min = glm::vec3(FLT_MAX);
-        glm::vec3 a_max = glm::vec3(-FLT_MAX);
-        glm::vec3 b_min = glm::vec3(FLT_MAX);
-        glm::vec3 b_max = glm::vec3(-FLT_MAX);
+    float splitPos = node.min[axis] + extent[axis] * 0.5f;
 
-        for (int i = 0; i < 3; i++) {
-            glm::vec3 a_vertex = mesh.vertices[a[i]];
-            a_min = glm::min(a_min, a_vertex);
-            a_max = glm::max(a_max, a_vertex);
-
-            glm::vec3 b_vertex = mesh.vertices[b[i]];
-            b_min = glm::min(b_min, b_vertex);
-            b_max = glm::max(b_max, b_vertex);
-        }
-
-        return a_min[axis] < b_min[axis];
-    });
-
-    float best_cost = FLT_MAX;
-    int best_split_i = -1;
-    float cur_cost = leaf_cost(*root);
-
-    for (int i = 1; i < faces_sorted.size(); i++) {
-        float cost = split_cost(*this, node, axis, faces_sorted, i);
-        if (cost < best_cost) {
-            best_cost = cost;
-            best_split_i = i;
-        }
+    // ingenious in-place partitioning
+    int i = node.left_first_prim;
+    int j = i + node.n_prims - 1;
+    while (i <= j) {
+        if (mesh.faces[prim_idxs[i]].centroid[axis] < splitPos) {
+            i++;
+        } else {
+            std::swap(prim_idxs[i], prim_idxs[j--]);
+        }            
     }
 
-    int split_i = best_split_i;
-    // int split_i = faces_sorted.size() / 2;
-
-    #ifdef DEBUG
-    cout << "Splitting at " << split_i << " out of " << faces_sorted.size() << endl;
-    #endif
-
-    BVHNode left;
-    left.min = glm::vec3(FLT_MAX);
-    left.max = glm::vec3(-FLT_MAX);
-
-    BVHNode right;
-    right.min = glm::vec3(FLT_MAX);
-    right.max = glm::vec3(-FLT_MAX);
-
-    for (int i = 0; i < split_i; i++) {
-        Face face = faces_sorted[i];
-        for (int j = 0; j < 3; j++) {
-            glm::vec3 vertex = mesh.vertices[face[j]];
-            left.min = glm::min(left.min, vertex);
-            left.max = glm::max(left.max, vertex);
-        }
-        left.faces.push_back(face);
+    int leftCount = i - node.left_first_prim;
+    if (leftCount == 0 || leftCount == node.n_prims) {
+        n_leaves++;
+        return;
     }
 
-    for (int i = split_i; i < faces_sorted.size(); i++) {
-        Face face = faces_sorted[i];
-        for (int j = 0; j < 3; j++) {
-            glm::vec3 vertex = mesh.vertices[face[j]];
-            right.min = glm::min(right.min, vertex);
-            right.max = glm::max(right.max, vertex);
-        }
-        right.faces.push_back(face);
-    }
+    int left_idx = n_nodes++;
+    int right_idx = n_nodes++;
 
-    #ifdef DEBUG
-    cout << "Current depth is " << depth << endl;
-    cout << "Parent node min: " << root->min.x << " " << root->min.y << " " << root->min.z << endl;
-    cout << "Parent node max: " << root->max.x << " " << root->max.y << " " << root->max.z << endl;
-    float split_coord = mesh.vertices[faces_sorted[split_i].v1][axis];
-    cout << "Splitting at " << split_coord << " on axis " << axis << endl;
-    cout << "Number of faces left: " << left.faces.size() << endl;
-    cout << "Number of faces right: " << right.faces.size() << endl;
-    cout << endl;
-    #endif
+    nodes[left_idx].left_first_prim = node.left_first_prim;
+    nodes[left_idx].n_prims = leftCount;
+    nodes[left_idx].update_bounds(mesh.faces.data(), mesh.vertices.data(), prim_idxs.data());
 
-    if (left.faces.size() > 0) {
-        nodes.push_back(left);
-        nodes[node].left = nodes.size() - 1;
-        grow_bvh(nodes.size() - 1, depth - 1);
-    }
+    nodes[right_idx].left_first_prim = i;
+    nodes[right_idx].n_prims = node.n_prims - leftCount;
+    nodes[right_idx].update_bounds(mesh.faces.data(), mesh.vertices.data(), prim_idxs.data());
 
-    if (right.faces.size() > 0) {
-        nodes.push_back(right);
-        nodes[node].right = nodes.size() - 1;
-        grow_bvh(nodes.size() - 1, depth - 1);
-    }
+    nodes[node_idx].left_first_prim = left_idx;
+    nodes[node_idx].n_prims = 0;
+
+    grow_bvh(left_idx, cur_depth + 1, max_depth);
+    grow_bvh(right_idx, cur_depth + 1, max_depth);
 }
 
-
 std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-BVH::intersect_leaves(const glm::vec3& o, const glm::vec3& d, int& stack_size, uint32_t* stack) {
+BVH::intersect_leaves(
+    const glm::vec3 &ray_origin,
+    const glm::vec3 &ray_vector,
+    int &stack_size,
+    uint32_t *stack
+) {
     if (stack_size == 1 && stack[0] == 0) {
-        auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[0].min, nodes[0].max);
+        auto [mask, t1, t2] = ray_box_intersection(ray_origin, ray_vector, nodes[0].min, nodes[0].max);
         if (!mask) {
             return {false, -1, 0, 0};
         }
@@ -209,17 +110,15 @@ BVH::intersect_leaves(const glm::vec3& o, const glm::vec3& d, int& stack_size, u
         uint32_t node_idx = stack[--stack_size];
 
         if (nodes[node_idx].is_leaf()) {
-            // redundant computation, yes I know
-            auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[node_idx].min, nodes[node_idx].max);
-
+            auto [mask, t1, t2] = ray_box_intersection(ray_origin, ray_vector, nodes[node_idx].min, nodes[node_idx].max);
             return {mask, node_idx, t1, t2};
         }
 
-        uint32_t left = nodes[node_idx].left;
-        uint32_t right = nodes[node_idx].right;
+        uint32_t left = nodes[node_idx].left();
+        uint32_t right = nodes[node_idx].right();
 
-        auto [mask_l, t1_l, t2_l] = ray_box_intersection(o, d, nodes[left].min, nodes[left].max);
-        auto [mask_r, t1_r, t2_r] = ray_box_intersection(o, d, nodes[right].min, nodes[right].max);
+        auto [mask_l, t1_l, t2_l] = ray_box_intersection(ray_origin, ray_vector, nodes[left].min, nodes[left].max);
+        auto [mask_r, t1_r, t2_r] = ray_box_intersection(ray_origin, ray_vector, nodes[right].min, nodes[right].max);
 
         if (mask_l && mask_r && t1_l < t1_r) {
             std::swap(left, right);
@@ -239,8 +138,8 @@ BVH::intersect_leaves(const glm::vec3& o, const glm::vec3& d, int& stack_size, u
     return {false, -1, 0, 0};
 }
 
-
-void BVH::save_as_obj(const std::string& filename) {
+// thanks gpt-o1
+void BVH::save_as_obj(const std::string &filename) {
     std::ofstream outFile(filename);
 
     if (!outFile.is_open()) {
@@ -251,7 +150,7 @@ void BVH::save_as_obj(const std::string& filename) {
     int vertexOffset = 1; // Keeps track of vertex indices for face definitions
 
     // Lambda function to write a cube's vertices and faces
-    auto writeCube = [&](const glm::vec3& min, const glm::vec3& max) {
+    auto writeCube = [&](const glm::vec3 &min, const glm::vec3 &max) {
         // Write vertices for the cube
         outFile << "v " << min.x << " " << min.y << " " << min.z << "\n"; // Bottom-left-front
         outFile << "v " << max.x << " " << min.y << " " << min.z << "\n"; // Bottom-right-front
@@ -274,17 +173,13 @@ void BVH::save_as_obj(const std::string& filename) {
     };
 
     // Recursive function to traverse the BVH and write leaf nodes
-    std::function<void(int)> traverseAndWrite = [&](int node) {
-        if (node == -1) return;
-
+    std::function<void(uint32_t)> traverseAndWrite = [&](uint32_t node) {
         if (nodes[node].is_leaf()) {
-            // Leaf node: write its bounding box as a cube
             writeCube(nodes[node].min, nodes[node].max);
-        }
-
-        // Recursively traverse children
-        traverseAndWrite(nodes[node].left);
-        traverseAndWrite(nodes[node].right);
+        } else {
+            traverseAndWrite(nodes[node].left());
+            traverseAndWrite(nodes[node].right());
+        }        
     };
 
     // Start traversal and writing
@@ -295,30 +190,11 @@ void BVH::save_as_obj(const std::string& filename) {
 }
 
 
-std::tuple<bool, float, float> // mask, t_enter, t_exit
-ray_box_intersection(const glm::vec3 &o, const glm::vec3 &d, const glm::vec3 &min, const glm::vec3 &max) {
-    glm::vec3 t1 = (min - o) / d;
-    glm::vec3 t2 = (max - o) / d;
-
-    glm::vec3 tmin = glm::min(t1, t2);
-    glm::vec3 tmax = glm::max(t1, t2);
-
-    float t_enter = glm::max(tmin.x, glm::max(tmin.y, tmin.z));
-    float t_exit = glm::min(tmax.x, glm::min(tmax.y, tmax.z));
-
-    if (t_exit < 0 || t_enter > t_exit) {
-        return {false, 0, 0};
-    }
-
-    return {true, t_enter, t_exit};
-}
-
 // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
 // BVH::intersect_leaves with modifications
-int BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_segments, bool* segments) {
-    std::vector<uint32_t> stack(max_depth, 0);
+void BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_segments, bool* segments) {
+    std::vector<uint32_t> stack(depth + 10, 0);
     int stack_size = 1;
-    uint32_t closest_segment = n_segments;
 
     std::fill(segments, segments + n_segments, false);
 
@@ -327,7 +203,7 @@ int BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_
 
     auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[0].min, nodes[0].max);
     if (!mask) {
-        return closest_segment;
+        return;
     }
 
     while (stack_size > 0) {
@@ -358,18 +234,17 @@ int BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_
 
             if (segment1 < segment2) {
                 std::fill(segments + segment1, segments + segment2, true);
-                closest_segment = std::min(closest_segment, segment1);
             } else {
-                std::cout << "t1: " << t1 << "; t2: " << t2 << std::endl;
-                std::cout << "segment1: " << segment1 << "; segment2: " << segment2 << std::endl;
+                // std::cout << "t1: " << t1 << "; t2: " << t2 << std::endl;
+                // std::cout << "segment1: " << segment1 << "; segment2: " << segment2 << std::endl;
                 // what happened?
             }           
 
             continue;
         }
 
-        uint32_t left = nodes[node_idx].left;
-        uint32_t right = nodes[node_idx].right;
+        uint32_t left = nodes[node_idx].left();
+        uint32_t right = nodes[node_idx].right();
 
         auto [mask_l, t1_l, t2_l] = ray_box_intersection(o, d, nodes[left].min, nodes[left].max);
         auto [mask_r, t1_r, t2_r] = ray_box_intersection(o, d, nodes[right].min, nodes[right].max);
@@ -382,6 +257,4 @@ int BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_
             stack[stack_size++] = right;
         }
     }
-
-    return closest_segment;
 }

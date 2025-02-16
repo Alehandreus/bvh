@@ -24,8 +24,12 @@ make run
 
 <img src="https://i.imgur.com/yh6rj9C.png" alt="no image?" style="width: 100%;"/>
 
-<div style="display: flex;">
-    <img src="https://i.imgur.com/HoO3BY0.png" alt="no image?" style="width: 50%;"/>
-    <img src="https://i.imgur.com/sVzMaJX.png" alt="no image?" style="width: 50%;"/>
+<div style="display: flex; justify-content: space-between">
+    <img src="https://i.imgur.com/HoO3BY0.png" alt="no image?" style="width: 49%;"/>
+    <img src="https://i.imgur.com/sVzMaJX.png" alt="no image?" style="width: 49%;"/>
 </div>
 
+## References
+
+* [jbikker's guide to BVH](https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/)
+* [ray-tracing.ru guide](http://ray-tracing.ru/articles184.html)

@@ -6,11 +6,13 @@ ext_modules = [
         "bvh",
         [
             "src/bindings.cpp",
+            "src/utils.cpp",
             "src/bvh.cpp",
         ],
         include_dirs=["include"],
         libraries=["assimp"],
         extra_compile_args=["-fopenmp"],
+        extra_link_args=["-fopenmp"],
     ),
 ]
 

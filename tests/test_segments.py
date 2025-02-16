@@ -48,7 +48,7 @@ directions = pixels - origins
 start = origins + directions * 0.3
 end = origins + directions * 0.7
 
-n_segments = 64
+n_segments = 8
 segments = loader.intersect_segments(start, end, n_segments)
 
 segments_argmax = np.argmax(segments, axis=1)

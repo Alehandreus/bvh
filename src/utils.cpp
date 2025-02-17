@@ -1,5 +1,10 @@
 #include "utils.h"
 
+#include <fstream>
+#include <iostream>
+
+using std::cin, std::cout, std::endl;
+
 // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
 std::tuple<bool, float> // mask, t
 ray_triangle_intersection(
@@ -66,4 +71,72 @@ ray_box_intersection(
     }
 
     return {true, t_enter, t_exit};
+}
+
+// thanks copilot
+void SaveToBMP(const unsigned int *pixels, int width, int height, const char* filename) {
+    // File header (14 bytes)
+    unsigned char fileHeader[14] = {
+        'B', 'M', // Magic identifier
+        0, 0, 0, 0, // File size in bytes, will be set later
+        0, 0, // Reserved
+        0, 0, // Reserved
+        54, 0, 0, 0 // Offset to image data, 54 bytes
+    };
+
+    // Information header (40 bytes)
+    unsigned char infoHeader[40] = {
+        40, 0, 0, 0, // Header size
+        0, 0, 0, 0, // Image width, will be set later
+        0, 0, 0, 0, // Image height, will be set later
+        1, 0, // Number of color planes
+        24, 0, // Bits per pixel
+        0, 0, 0, 0, // Compression type (0 = none)
+        0, 0, 0, 0, // Image size (can be 0 for no compression)
+        0, 0, 0, 0, // X pixels per meter (not specified)
+        0, 0, 0, 0, // Y pixels per meter (not specified)
+        0, 0, 0, 0, // Number of colors (0 = default)
+        0, 0, 0, 0  // Important colors (0 = all)
+    };
+
+    // Set width and height in infoHeader
+    *(int*)&infoHeader[4] = width;
+    *(int*)&infoHeader[8] = height;
+
+    // The row length in bytes, each pixel needs 3 bytes, rows are padded to be a multiple of 4 bytes
+    int rowPadding = (4 - (width * 3 % 4)) % 4;
+    int rowSize = width * 3 + rowPadding;
+    int dataSize = rowSize * height;
+
+    // Set file size in fileHeader
+    *(int*)&fileHeader[2] = 54 + dataSize;
+
+    std::ofstream file(filename, std::ios::out | std::ios::binary);
+    if (!file) {
+        cout << "Could not open file for writing." << endl;
+        return;
+    }
+
+    // Write headers
+    file.write((char*)fileHeader, 14);
+    file.write((char*)infoHeader, 40);
+
+    // Write pixel data
+    for (int y = height - 1; y >= 0; y--) { // BMP files store data bottom-up
+        for (int x = 0; x < width; x++) {
+            unsigned int pixel = pixels[y * width + x];
+            unsigned char colors[3] = {
+                (unsigned char)((pixel >> 0) & 0xFF), // Blue
+                (unsigned char)((pixel >> 8) & 0xFF), // Green
+                (unsigned char)((pixel >> 16) & 0xFF) // Red
+            };
+            file.write((char*)colors, 3);
+        }
+        if (rowPadding > 0) {
+            static const unsigned char padding[3] = { 0, 0, 0 };
+            file.write((char*)padding, rowPadding);
+        }
+    }
+
+    file.close();
 }

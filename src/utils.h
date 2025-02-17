@@ -1,5 +1,6 @@
-#include <vector>
 #include <glm/glm.hpp>
+
+#include <vector>
 #include <tuple>
 
 struct Face {
@@ -49,3 +50,5 @@ ray_box_intersection(
     const glm::vec3 &aabb_min,
     const glm::vec3 &aabb_max
 );
+
+void SaveToBMP(const unsigned int *pixels, int width, int height, const char* filename);

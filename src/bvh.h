@@ -1,7 +1,6 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-
 #include <glm/glm.hpp>
 
 #include <iostream>
@@ -17,13 +16,13 @@
 
 using std::cin, std::cout, std::endl;
 
-// https://learnopengl.com/Model-Loading/Model
 struct Mesh {
     std::vector<glm::vec3> vertices;
     std::vector<Face> faces;
 
     Mesh() {}
 
+    // https://learnopengl.com/Model-Loading/Model
     void load_scene(const char *scene_path) {
         Assimp::Importer importer;
         const aiScene *scene = importer.ReadFile(scene_path, aiProcess_Triangulate | aiProcess_JoinIdenticalVertices);
@@ -90,6 +89,18 @@ struct Mesh {
                 face_i++;
             }
         }
+    }
+
+    std::tuple<glm::vec3, glm::vec3> bounds() {
+        glm::vec3 min(FLT_MAX);
+        glm::vec3 max(-FLT_MAX);
+
+        for (const glm::vec3 &vertex : vertices) {
+            min = glm::min(min, vertex);
+            max = glm::max(max, vertex);
+        }
+
+        return {min, max};
     }
 };
 

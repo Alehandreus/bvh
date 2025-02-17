@@ -1,19 +1,4 @@
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-
-#include <glm/glm.hpp>
-
-#include <iostream>
-#include <vector>
-#include <fstream>
-#include <string>
-#include <functional>
-#include <unordered_set>
-#include <algorithm>
-
 #include "bvh.h"
-
 
 void BVH::build_bvh(int max_depth) {
     int n_faces = mesh.faces.size();
@@ -259,4 +244,53 @@ void BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n
             stack[stack_size++] = right;
         }
     }
+}
+
+std::tuple<bool, float>
+BVH::intersect_primitives(const glm::vec3 &ray_origin, const glm::vec3 &ray_vector) {
+    std::vector<uint32_t> stack(depth + 10, 0);
+    int stack_size = 1;
+
+    if (stack_size == 1 && stack[0] == 0) {
+        auto [mask, t1, t2] = ray_box_intersection(ray_origin, ray_vector, nodes[0].min, nodes[0].max);
+        if (!mask) {
+            return { false, 0 };
+        }
+    }
+
+    float closest_t = FLT_MAX;
+
+    while (stack_size > 0) {
+        uint32_t node_idx = stack[--stack_size];
+
+        if (nodes[node_idx].is_leaf()) {
+            BVHNode &node = nodes[node_idx];
+            auto [mask_prim, t_prim] = node.intersect_primitives(
+                ray_origin, ray_vector,
+                mesh.faces.data(), mesh.vertices.data(), prim_idxs.data()
+            );
+            
+            if (mask_prim && t_prim < closest_t) {
+                closest_t = t_prim;
+            }
+            
+            continue;
+        }
+
+        uint32_t left = nodes[node_idx].left();
+        uint32_t right = nodes[node_idx].right();
+
+        auto [mask_l, t1_l, t2_l] = ray_box_intersection(ray_origin, ray_vector, nodes[left].min, nodes[left].max);
+        auto [mask_r, t1_r, t2_r] = ray_box_intersection(ray_origin, ray_vector, nodes[right].min, nodes[right].max);
+
+        if (mask_l) {
+            stack[stack_size++] = left;
+        }
+
+        if (mask_r) {
+            stack[stack_size++] = right;
+        }
+    }
+
+    return { closest_t != FLT_MAX, (closest_t != FLT_MAX) ? closest_t : 0 };
 }

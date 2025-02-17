@@ -1,10 +1,14 @@
 ### BVH Tree
-BVH implementation for [neural-intersection](https://github.com/Alehandreus/neural-intersection) repo. Super-early release. Trivial selection criteria, no cuda, no triangle intersection, (almost) nothing.
+BVH implementation for [neural-intersection](https://github.com/Alehandreus/neural-intersection) repo. Early release. But GUESS WHAT? PYTHON BINDINGS ARE ALREADY HERE! See `tests/test.py`
 
-But GUESS WHAT? PYTHON BINDINGS ARE ALREADY HERE! See `tests/test.py`
+## Features
+* Large primitive splitting as preprocessing step
+* NumPy bindings
 
 ## Requirements
-* `sudo pacman -S assimp glm openmp` or similar with other package managers
+* `assimp`, `glm`, `openmp`
+    * `sudo pacman -S assimp glm openmp`
+    * `sudo apt install libassimp-dev libglm-dev`
 * `pip install -r requirements.txt`
 
 ## Installation
@@ -20,14 +24,10 @@ make release
 make run
 ```
 
-## Examples
+## Images
 
 <img src="https://i.imgur.com/yh6rj9C.png" alt="no image?" style="width: 100%;"/>
-
-<div style="display: flex; justify-content: space-between">
-    <img src="https://i.imgur.com/HoO3BY0.png" alt="no image?" style="width: 49%;"/>
-    <img src="https://i.imgur.com/sVzMaJX.png" alt="no image?" style="width: 49%;"/>
-</div>
+<img src="https://i.imgur.com/sVzMaJX.png" alt="no image?" style="width: 100%;"/>
 
 ## References
 

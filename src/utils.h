@@ -1,5 +1,6 @@
 #include <vector>
 #include <glm/glm.hpp>
+#include <tuple>
 
 struct Face {
     uint32_t v1, v2, v3;
@@ -34,7 +35,7 @@ struct Face {
 };
 
 std::tuple<bool, float> // mask, t
-ray_intersects_triangle(
+ray_triangle_intersection(
     const glm::vec3 &ray_origin,
     const glm::vec3 &ray_vector,
     const Face& face,

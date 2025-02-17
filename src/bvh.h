@@ -135,6 +135,34 @@ struct BVHNode {
             }
         }
     }
+
+    std::tuple<bool, float>
+    intersect_primitives(
+        const glm::vec3 &ray_origin,
+        const glm::vec3 &ray_vector, 
+        const Face *faces,
+        const glm::vec3 *vertices,
+        const uint32_t *prim_idxs
+    ) {
+        bool mask_total;
+        float t_total = FLT_MAX;
+
+        for (int prim_i = left_first_prim; prim_i < left_first_prim + n_prims; prim_i++) {
+            const Face &face = faces[prim_idxs[prim_i]];
+
+            auto [mask, t] = ray_triangle_intersection(
+                ray_origin, ray_vector,
+                face, vertices
+            );
+
+            if (mask && t < t_total) {
+                mask_total = true;
+                t_total = t;
+            }
+        }
+
+        return { mask_total, t_total };
+    }
 };
 
 struct BVH {
@@ -167,7 +195,10 @@ struct BVH {
     void save_as_obj(const std::string &filename);
     
     std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-    intersect_leaves(const glm::vec3 &ray_origin, const glm::vec3 &ray_direction, int& stack_size, uint32_t *stack); // bvh traversal, stack_size and stack are altered
+    intersect_leaves(const glm::vec3 &ray_origin, const glm::vec3 &ray_vector, int& stack_size, uint32_t *stack); // bvh traversal, stack_size and stack are altered
+
+    std::tuple<bool, float>
+    intersect_primitives(const glm::vec3 &ray_origin, const glm::vec3 &ray_vector);
 
     // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
     void intersect_segments(const glm::vec3 &start, const glm::vec3 &end, int n_segments, bool *segments);

@@ -19,26 +19,26 @@ PYBIND11_MODULE(bvh, m) {
         .def("intersect_leaves", [](
             BVH& self,
             py::array_t<float> ray_origins,
-            py::array_t<float> ray_directions,
+            py::array_t<float> ray_vectors,
             py::array_t<int> stack_size,
             py::array_t<uint32_t> stack
         ) {
             auto ray_origins_buf = ray_origins.request();
-            auto ray_directions_buf = ray_directions.request();
+            auto ray_vectors_buf = ray_vectors.request();
             auto stack_size_buf = stack_size.request();
             auto stack_buf = stack.request();
 
             int n_rays = ray_origins_buf.shape[0];
     
-            if (ray_directions_buf.shape[0] != n_rays || stack_size_buf.shape[0] != n_rays) {
+            if (ray_vectors_buf.shape[0] != n_rays || stack_size_buf.shape[0] != n_rays) {
                 throw std::runtime_error("Mismatched shapes!");
             }
 
-            if (ray_directions_buf.ndim != 2 || ray_directions_buf.shape[1] != 3) {
-                throw std::runtime_error("ray_directions must have shape (N,3)");
+            if (ray_vectors_buf.ndim != 2 || ray_vectors_buf.shape[1] != 3) {
+                throw std::runtime_error("ray_vectors must have shape (N,3)");
             }
-            if (ray_directions_buf.itemsize != sizeof(float)) {
-                throw std::runtime_error("ray_directions must have dtype float32");
+            if (ray_vectors_buf.itemsize != sizeof(float)) {
+                throw std::runtime_error("ray_vectors must have dtype float32");
             }
 
             if (stack_size_buf.ndim != 1) {
@@ -67,7 +67,7 @@ PYBIND11_MODULE(bvh, m) {
             }
 
             glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.request().ptr;
-            glm::vec3 *ray_directions_ptr = (glm::vec3 *) ray_directions.request().ptr;
+            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.request().ptr;
             int *stack_size_ptr = (int *) stack_size.request().ptr;
             uint32_t *stack_ptr = (uint32_t *) stack.request().ptr;
 
@@ -85,7 +85,7 @@ PYBIND11_MODULE(bvh, m) {
             for (int i = 0; i < n_rays; ++i) {
                 auto [mask, leaf_index, t_enter, t_exit] = self.intersect_leaves(
                     ray_origins_ptr[i],
-                    ray_directions_ptr[i], 
+                    ray_vectors_ptr[i], 
                     stack_size_ptr[i],
                     stack_ptr + given_stack_size * i
                 );
@@ -143,6 +143,36 @@ PYBIND11_MODULE(bvh, m) {
             }
 
             return segments;            
+        })
+        .def("intersect_primitives", [](
+            BVH& self,
+            py::array_t<float> points_start,
+            py::array_t<float> points_end
+        ) {
+            // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
+
+            auto points_start_buf = points_start.request();
+            auto points_end_buf = points_end.request();
+
+            int n_rays = points_start_buf.shape[0];
+
+            glm::vec3 *points_start_ptr = (glm::vec3 *) points_start.request().ptr;
+            glm::vec3 *points_end_ptr = (glm::vec3 *) points_end.request().ptr;
+
+            py::array_t<bool> mask({n_rays});
+            py::array_t<float> t({n_rays});
+
+            bool *mask_ptr = (bool *) mask.request().ptr;
+            float *t_ptr = (float *) t.request().ptr;
+
+            #pragma omp parallel for
+            for (int i = 0; i < n_rays; ++i) {
+                auto [a, b] = self.intersect_primitives(points_start_ptr[i], points_end_ptr[i]);
+                mask_ptr[i] = a;
+                t_ptr[i] = b;
+            }
+
+            return std::make_tuple(mask, t);
         })
         .def_readonly("depth", &BVH::depth)
         .def_readonly("n_nodes", &BVH::n_nodes)

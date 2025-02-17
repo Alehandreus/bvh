@@ -29,7 +29,7 @@ color_pool = np.array([
 
 
 loader = BVH()
-loader.load_scene("suzanne2.fbx")
+loader.load_scene("suzanne.fbx")
 loader.build_bvh(15)
 
 resolution = 1000
@@ -77,4 +77,4 @@ plt.axis('off')
 plt.imshow(img, cmap='gray')
 plt.tight_layout()
 plt.savefig('suzanne2.png')
-plt.show()
+# plt.show()

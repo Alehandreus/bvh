@@ -1,11 +1,8 @@
-#include <vector>
-#include <glm/glm.hpp>
-
 #include "utils.h"
 
 // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
 std::tuple<bool, float> // mask, t
-ray_intersects_triangle(
+ray_triangle_intersection(
     const glm::vec3 &ray_origin,
     const glm::vec3 &ray_vector,
     const Face& face,

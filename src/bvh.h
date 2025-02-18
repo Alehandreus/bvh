@@ -2,6 +2,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <glm/glm.hpp>
+#include <omp.h>
 
 #include <iostream>
 #include <vector>
@@ -13,6 +14,7 @@
 #include <tuple>
 
 #include "utils.h"
+#include "cuda_compat.h"
 
 using std::cin, std::cout, std::endl;
 
@@ -105,14 +107,9 @@ struct Mesh {
 };
 
 struct BVHNode {
-    glm::vec3 min, max;
+    BBox bbox;
     uint32_t left_first_prim;
     uint32_t n_prims;
-
-    BVHNode() {
-        min = glm::vec3(FLT_MAX);
-        max = glm::vec3(-FLT_MAX);
-    }
 
     inline bool is_leaf() const {
         return n_prims > 0;
@@ -127,54 +124,47 @@ struct BVHNode {
     }
 
     bool inside(glm::vec3 point) const {
-        return point.x >= min.x && point.x <= max.x &&
-               point.y >= min.y && point.y <= max.y &&
-               point.z >= min.z && point.z <= max.z;
+        return bbox.inside(point);
     }
 
     void update_bounds(const Face *faces, const glm::vec3 *vertices, const uint32_t *prim_idxs) {
-        min = glm::vec3(FLT_MAX);
-        max = glm::vec3(-FLT_MAX);
+        bbox.min = glm::vec3(FLT_MAX);
+        bbox.max = glm::vec3(-FLT_MAX);
 
         for (int prim_i = left_first_prim; prim_i < left_first_prim + n_prims; prim_i++) {
             const Face &face = faces[prim_idxs[prim_i]];
 
             for (int j = 0; j < 3; j++) {
                 const glm::vec3 &vertex = vertices[face[j]];
-                min = glm::min(min, vertex);
-                max = glm::max(max, vertex);
+                bbox.update(vertex);
             }
         }
-    }
-
-    std::tuple<bool, float>
-    intersect_primitives(
-        const glm::vec3 &ray_origin,
-        const glm::vec3 &ray_vector, 
-        const Face *faces,
-        const glm::vec3 *vertices,
-        const uint32_t *prim_idxs
-    ) {
-        bool mask_total;
-        float t_total = FLT_MAX;
-
-        for (int prim_i = left_first_prim; prim_i < left_first_prim + n_prims; prim_i++) {
-            const Face &face = faces[prim_idxs[prim_i]];
-
-            auto [mask, t] = ray_triangle_intersection(
-                ray_origin, ray_vector,
-                face, vertices
-            );
-
-            if (mask && t < t_total) {
-                mask_total = true;
-                t_total = t;
-            }
-        }
-
-        return { mask_total, t_total };
     }
 };
+
+struct BVHDataPointers {
+    const glm::vec3 *vertices;
+    const Face *faces;
+    const BVHNode *nodes;
+    const uint32_t *prim_idxs;
+};
+
+struct StackInfo {
+    int &stack_size;
+    uint32_t *stack;
+};
+
+enum TraverseMode {
+    CLOSEST_PRIMITIVE,
+    ALL_BBOXES    
+};
+
+HitResult bvh_traverse(
+    const Ray &ray,
+    const BVHDataPointers &dp,
+    StackInfo &st,
+    TraverseMode mode
+);
 
 struct BVH {
     Mesh mesh;
@@ -184,6 +174,9 @@ struct BVH {
     int depth;
     int n_nodes;
     int n_leaves;
+
+    std::vector<uint32_t> stack;
+    std::vector<int> stack_sizes;
 
     BVH() {}
 
@@ -199,18 +192,44 @@ struct BVH {
         return nodes.size() * sizeof(nodes[0]);
     }
 
-    void build_bvh(int max_depth); // inits root and grows bvh
-    void grow_bvh(uint32_t node, int depth, int max_depth); // recursive function to grow bvh
+    BVHDataPointers data_pointers() const {
+        return {mesh.vertices.data(), mesh.faces.data(), nodes.data(), prim_idxs.data()};
+    }
+
+    void build_bvh(int max_depth);
+    void split_node(uint32_t node, int depth, int max_depth);
 
     // save leaves as boxes in .obj file
     void save_as_obj(const std::string &filename);
-    
-    std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-    intersect_leaves(const glm::vec3 &ray_origin, const glm::vec3 &ray_vector, int& stack_size, uint32_t *stack); // bvh traversal, stack_size and stack are altered
 
-    std::tuple<bool, float>
-    intersect_primitives(const glm::vec3 &ray_origin, const glm::vec3 &ray_vector);
+    // traverse single ray, use local stack to be thread-safe
+    HitResult traverse_primitives(const Ray &ray) const {
+        std::vector<uint32_t> smol_stack(depth * 2, 0);
+        int smol_stack_size = 1;
+        StackInfo stack_info = {smol_stack_size, smol_stack.data()};
+        HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE);
+        return hit;
+    }
 
-    // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
-    void intersect_segments(const glm::vec3 &start, const glm::vec3 &end, int n_segments, bool *segments);
+    // this is intended for python use, so structures like Ray and HitResult are not exposed
+    void traverse_primitives_batch(
+        const glm::vec3 *ray_origins,
+        const glm::vec3 *ray_vectors,
+        bool *masks,
+        float *t,
+        int n_rays
+    ) {
+        int one_stack_size = depth * 2;
+        stack.resize(n_rays * one_stack_size);
+        stack_sizes.resize(n_rays, 1);
+
+        #pragma omp parallel for
+        for (int i = 0; i < n_rays; i++) {
+            Ray ray = {ray_origins[i], ray_vectors[i]};
+            StackInfo stack_info = {stack_sizes[i], stack.data() + i * one_stack_size};
+            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE);
+            masks[i] = hit.hit;
+            t[i] = hit.t;
+        }
+    }
 };

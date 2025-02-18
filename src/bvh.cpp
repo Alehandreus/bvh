@@ -22,12 +22,12 @@ void BVH::build_bvh(int max_depth) {
     n_leaves = 0;
     depth = 1;
 
-    grow_bvh(0, depth, max_depth);
+    split_node(0, depth, max_depth);
 
     nodes.resize(n_nodes);
 }
 
-void BVH::grow_bvh(uint32_t node_idx, int cur_depth, int max_depth) {
+void BVH::split_node(uint32_t node_idx, int cur_depth, int max_depth) {
     BVHNode &node = nodes[node_idx];
 
     depth = std::max(depth, cur_depth);
@@ -36,13 +36,13 @@ void BVH::grow_bvh(uint32_t node_idx, int cur_depth, int max_depth) {
         return;
     }
 
-    glm::vec3 extent = node.max - node.min;
+    glm::vec3 extent = node.bbox.diagonal();
 
     int axis = 0;
     if (extent.y > extent.x) axis = 1;
     if (extent.z > extent[axis]) axis = 2;
 
-    float splitPos = node.min[axis] + extent[axis] * 0.5f;
+    float splitPos = node.bbox.min[axis] + extent[axis] * 0.5f;
 
     // ingenious in-place partitioning
     int i = node.left_first_prim;
@@ -75,54 +75,82 @@ void BVH::grow_bvh(uint32_t node_idx, int cur_depth, int max_depth) {
     nodes[node_idx].left_first_prim = left_idx;
     nodes[node_idx].n_prims = 0;
 
-    grow_bvh(left_idx, cur_depth + 1, max_depth);
-    grow_bvh(right_idx, cur_depth + 1, max_depth);
+    split_node(left_idx, cur_depth + 1, max_depth);
+    split_node(right_idx, cur_depth + 1, max_depth);
 }
 
-std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-BVH::intersect_leaves(
-    const glm::vec3 &ray_origin,
-    const glm::vec3 &ray_vector,
-    int &stack_size,
-    uint32_t *stack
+HitResult bvh_traverse(
+    const Ray &ray,
+    const BVHDataPointers &dp,
+    StackInfo &st,
+    TraverseMode mode
 ) {
-    if (stack_size == 1 && stack[0] == 0) {
-        auto [mask, t1, t2] = ray_box_intersection(ray_origin, ray_vector, nodes[0].min, nodes[0].max);
-        if (!mask) {
-            return {false, -1, 0, 0};
+    if (st.stack_size == 1 && st.stack[0] == 0) {
+        auto hit = ray_box_intersection(ray, dp.nodes[0].bbox);
+        if (!hit.hit) {
+            return hit;
         }
     }
 
-    while (stack_size > 0) {
-        uint32_t node_idx = stack[--stack_size];
+    HitResult closest_hit = {false, FLT_MAX, 0};
 
-        if (nodes[node_idx].is_leaf()) {
-            auto [mask, t1, t2] = ray_box_intersection(ray_origin, ray_vector, nodes[node_idx].min, nodes[node_idx].max);
-            return {mask, node_idx, t1, t2};
+    while (st.stack_size > 0) {
+        uint32_t node_idx = st.stack[--st.stack_size];
+
+        if (dp.nodes[node_idx].is_leaf()) {
+            const BVHNode &node = dp.nodes[node_idx];
+
+            /* ==== intersect only node bbox ==== */
+            if (mode == TraverseMode::ALL_BBOXES) {
+                HitResult bbox_hit = ray_box_intersection(ray, node.bbox);
+                if (bbox_hit.hit) {
+                    return bbox_hit;
+                }
+            }
+            
+            /* ==== intersect primitives in node ==== */
+            else if (mode == TraverseMode::CLOSEST_PRIMITIVE) {
+                HitResult node_hit = {false, FLT_MAX};
+                for (int prim_i = node.left_first_prim; prim_i < node.left_first_prim + node.n_prims; prim_i++) {
+                    uint32_t face_idx = dp.prim_idxs[prim_i];
+                    const Face &face = dp.faces[face_idx];
+
+                    HitResult prim_hit = ray_triangle_intersection(ray, face, dp.vertices);
+
+                    if (prim_hit.hit && prim_hit.t < node_hit.t) {
+                        node_hit = prim_hit;
+                    }
+                }
+
+                if (node_hit.hit && node_hit.t < closest_hit.t) {
+                    closest_hit = node_hit;
+                }
+            }
         }
 
-        uint32_t left = nodes[node_idx].left();
-        uint32_t right = nodes[node_idx].right();
+        /* ==== non-leaf case ==== */
+        else {
+            uint32_t left = dp.nodes[node_idx].left();
+            uint32_t right = dp.nodes[node_idx].right();
 
-        auto [mask_l, t1_l, t2_l] = ray_box_intersection(ray_origin, ray_vector, nodes[left].min, nodes[left].max);
-        auto [mask_r, t1_r, t2_r] = ray_box_intersection(ray_origin, ray_vector, nodes[right].min, nodes[right].max);
+            HitResult left_hit = ray_box_intersection(ray, dp.nodes[left].bbox);
+            HitResult right_hit = ray_box_intersection(ray, dp.nodes[right].bbox);
 
-        if (mask_l && mask_r && t1_l < t1_r) {
-            std::swap(left, right);
-            std::swap(t1_l, t1_r);
-            std::swap(t2_l, t2_r);
-        }
+            if (left_hit.hit) {
+                st.stack[st.stack_size++] = left;
+            }
 
-        if (mask_l) {
-            stack[stack_size++] = left;
-        }
-
-        if (mask_r) {
-            stack[stack_size++] = right;
+            if (right_hit.hit) {
+                st.stack[st.stack_size++] = right;
+            }
         }
     }
 
-    return {false, -1, 0, 0};
+    if (!closest_hit.hit) {
+        closest_hit.t = 0;
+    }
+
+    return closest_hit;
 }
 
 // thanks gpt-o1
@@ -162,7 +190,7 @@ void BVH::save_as_obj(const std::string &filename) {
     // Recursive function to traverse the BVH and write leaf nodes
     std::function<void(uint32_t)> traverseAndWrite = [&](uint32_t node) {
         if (nodes[node].is_leaf()) {
-            writeCube(nodes[node].min, nodes[node].max);
+            writeCube(nodes[node].bbox.min, nodes[node].bbox.max);
         } else {
             traverseAndWrite(nodes[node].left());
             traverseAndWrite(nodes[node].right());
@@ -174,123 +202,4 @@ void BVH::save_as_obj(const std::string &filename) {
 
     outFile.close();
     std::cout << "BVH saved as .obj file: " << filename << std::endl;
-}
-
-
-// experiment for Transformer Model at github.com/Alehandreus/neural-intersection
-// BVH::intersect_leaves with modifications
-void BVH::intersect_segments(const glm::vec3& start, const glm::vec3& end, int n_segments, bool* segments) {
-    std::vector<uint32_t> stack(depth + 10, 0);
-    int stack_size = 1;
-
-    std::fill(segments, segments + n_segments, false);
-
-    glm::vec3 o = start;
-    glm::vec3 d = end - start;
-
-    auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[0].min, nodes[0].max);
-    if (!mask) {
-        return;
-    }
-
-    while (stack_size > 0) {
-        uint32_t node_idx = stack[--stack_size];
-
-        if (nodes[node_idx].is_leaf()) {
-            auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[node_idx].min, nodes[node_idx].max);
-
-            // std::cout << "d1: " << t1 * glm::length(d) << "; d2: " << t2 * glm::length(d) << std::endl;
-
-            float eps = 1e-3;
-
-            t1 = std::max(t1, -eps);
-            t2 = std::max(t2, -eps);
-
-            uint32_t segment1 = (uint32_t) ((t1 - eps) * n_segments);
-            uint32_t segment2 = (uint32_t) ((t2 + eps) * n_segments) + 1;
-
-            // std::cout << "t1: " << t1 << "; t2: " << t2 << std::endl;
-            // std::cout << "segment1: " << segment1 << "; segment2: " << segment2 << std::endl;
-
-            // if (t1 < 0 || t2 < 0) {
-            //     std::cout << "t1: " << t1 << "; t2: " << t2 << std::endl;
-            // }
-
-            segment1 = std::clamp(segment1, 0u, (uint32_t) n_segments - 1);
-            segment2 = std::clamp(segment2, 1u, (uint32_t) n_segments);
-
-            if (segment1 < segment2) {
-                std::fill(segments + segment1, segments + segment2, true);
-            } else {
-                // std::cout << "t1: " << t1 << "; t2: " << t2 << std::endl;
-                // std::cout << "segment1: " << segment1 << "; segment2: " << segment2 << std::endl;
-                // what happened?
-            }           
-
-            continue;
-        }
-
-        uint32_t left = nodes[node_idx].left();
-        uint32_t right = nodes[node_idx].right();
-
-        auto [mask_l, t1_l, t2_l] = ray_box_intersection(o, d, nodes[left].min, nodes[left].max);
-        auto [mask_r, t1_r, t2_r] = ray_box_intersection(o, d, nodes[right].min, nodes[right].max);
-
-        if (mask_l) {
-            stack[stack_size++] = left;
-        }
-
-        if (mask_r) {
-            stack[stack_size++] = right;
-        }
-    }
-}
-
-std::tuple<bool, float>
-BVH::intersect_primitives(const glm::vec3 &ray_origin, const glm::vec3 &ray_vector) {
-    std::vector<uint32_t> stack(depth + 10, 0);
-    int stack_size = 1;
-
-    if (stack_size == 1 && stack[0] == 0) {
-        auto [mask, t1, t2] = ray_box_intersection(ray_origin, ray_vector, nodes[0].min, nodes[0].max);
-        if (!mask) {
-            return { false, 0 };
-        }
-    }
-
-    float closest_t = FLT_MAX;
-
-    while (stack_size > 0) {
-        uint32_t node_idx = stack[--stack_size];
-
-        if (nodes[node_idx].is_leaf()) {
-            BVHNode &node = nodes[node_idx];
-            auto [mask_prim, t_prim] = node.intersect_primitives(
-                ray_origin, ray_vector,
-                mesh.faces.data(), mesh.vertices.data(), prim_idxs.data()
-            );
-            
-            if (mask_prim && t_prim < closest_t) {
-                closest_t = t_prim;
-            }
-            
-            continue;
-        }
-
-        uint32_t left = nodes[node_idx].left();
-        uint32_t right = nodes[node_idx].right();
-
-        auto [mask_l, t1_l, t2_l] = ray_box_intersection(ray_origin, ray_vector, nodes[left].min, nodes[left].max);
-        auto [mask_r, t1_r, t2_r] = ray_box_intersection(ray_origin, ray_vector, nodes[right].min, nodes[right].max);
-
-        if (mask_l) {
-            stack[stack_size++] = left;
-        }
-
-        if (mask_r) {
-            stack[stack_size++] = right;
-        }
-    }
-
-    return { closest_t != FLT_MAX, (closest_t != FLT_MAX) ? closest_t : 0 };
 }

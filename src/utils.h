@@ -3,6 +3,13 @@
 #include <vector>
 #include <tuple>
 
+struct Ray {
+    glm::vec3 origin;
+    glm::vec3 vector;
+
+    Ray(const glm::vec3 &origin, const glm::vec3 &vector) : origin(origin), vector(vector) {}
+};
+
 struct Face {
     uint32_t v1, v2, v3;
     glm::vec3 centroid;
@@ -35,20 +42,52 @@ struct Face {
     }
 };
 
-std::tuple<bool, float> // mask, t
-ray_triangle_intersection(
-    const glm::vec3 &ray_origin,
-    const glm::vec3 &ray_vector,
+struct BBox {
+    glm::vec3 min, max;
+
+    BBox() : min(FLT_MAX), max(-FLT_MAX) {}
+
+    void update(const glm::vec3 &point) {
+        min = glm::min(min, point);
+        max = glm::max(max, point);
+    }
+
+    bool inside(const glm::vec3 &point) const {
+        return point.x >= min.x && point.x <= max.x &&
+               point.y >= min.y && point.y <= max.y &&
+               point.z >= min.z && point.z <= max.z;
+    }
+
+    glm::vec3 diagonal() const {
+        return max - min;
+    }
+};
+
+struct HitResult {
+    bool hit;
+    union {
+        float t;
+        struct {
+            float t1;
+            float t2;
+            uint32_t node_idx;
+        };
+    };
+
+    HitResult(bool hit, float t) : hit(hit), t(t) {}
+
+    HitResult(bool hit, float t1, float t2) : hit(hit), t1(t1), t2(t2) {}
+};
+
+HitResult ray_triangle_intersection(
+    const Ray &ray,
     const Face& face,
     const glm::vec3 *vertices
 );
 
-std::tuple<bool, float, float> // mask, t_enter, t_exit
-ray_box_intersection(
-    const glm::vec3 &ray_origin,
-    const glm::vec3 &ray_vector,
-    const glm::vec3 &aabb_min,
-    const glm::vec3 &aabb_max
+HitResult ray_box_intersection(
+    const Ray &ray,
+    const BBox &bbox
 );
 
 void SaveToBMP(const unsigned int *pixels, int width, int height, const char* filename);

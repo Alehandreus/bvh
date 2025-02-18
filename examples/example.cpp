@@ -1,5 +1,3 @@
-#include <omp.h>
-
 #include "../src/bvh.h"
 
 int main() {
@@ -7,7 +5,7 @@ int main() {
     BVH bvh;
 
     cout << "Loading scene..." << endl;
-    bvh.load_scene("cubes.fbx");
+    bvh.load_scene("suzanne.fbx");
     cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
     cout << "Number of faces: " << bvh.mesh.faces.size() << endl;
 
@@ -21,7 +19,7 @@ int main() {
     cout << endl;
 
     cout << "Building BVH..." << endl;
-    bvh.build_bvh(20);
+    bvh.build_bvh(15);
     cout << "Depth: " << bvh.depth << endl;
     cout << "Number of nodes: " << bvh.n_nodes << endl;
     cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
@@ -60,10 +58,10 @@ int main() {
             float y_f = ((float)y / img_size - 0.5f) * 2;
 
             glm::vec3 dir = cam_dir + x_dir * x_f + y_dir * y_f;
-            auto [mask, t] = bvh.intersect_primitives(cam_pos, dir);
+            HitResult hit = bvh.traverse_primitives({cam_pos, dir});
 
-            if (mask) {
-                float val = std::sinf(t * glm::length(cam_dir) * 2) * 0.3f + 0.5f;
+            if (hit.hit) {
+                float val = std::sinf(hit.t * glm::length(cam_dir) * 2) * 0.3f + 0.5f;
                 img[y * img_size + x] = { val, val, val };
             }
         }

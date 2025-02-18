@@ -6,10 +6,8 @@
 using std::cin, std::cout, std::endl;
 
 // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
-std::tuple<bool, float> // mask, t
-ray_triangle_intersection(
-    const glm::vec3 &ray_origin,
-    const glm::vec3 &ray_vector,
+HitResult ray_triangle_intersection(
+    const Ray &ray,
     const Face& face,
     const glm::vec3 *vertices
 ) {
@@ -21,21 +19,21 @@ ray_triangle_intersection(
 
     glm::vec3 edge1 = b - a;
     glm::vec3 edge2 = c - a;
-    glm::vec3 ray_cross_e2 = glm::cross(ray_vector, edge2);
+    glm::vec3 ray_cross_e2 = glm::cross(ray.vector, edge2);
     float det = glm::dot(edge1, ray_cross_e2);
     if (det > -epsilon && det < epsilon) {
         return { false, 0 }; // This ray is parallel to this triangle.
     }        
 
     float inv_det = 1.0 / det;
-    glm::vec3 s = ray_origin - a;
+    glm::vec3 s = ray.origin - a;
     float u = inv_det * glm::dot(s, ray_cross_e2);
     if ((u < 0 && std::fabs(u) > epsilon) || (u > 1 && std::fabs(u-1) > epsilon)) {
         return { false, 0 };
     }
 
     glm::vec3 s_cross_e1 = glm::cross(s, edge1);
-    float v = inv_det * glm::dot(ray_vector, s_cross_e1);
+    float v = inv_det * glm::dot(ray.vector, s_cross_e1);
     if ((v < 0 && std::fabs(v) > epsilon) || (u + v > 1 && std::fabs(u + v - 1) > epsilon)) {
         return { false, 0 };
     }
@@ -50,15 +48,12 @@ ray_triangle_intersection(
     return { false, 0 };
 }
 
-std::tuple<bool, float, float> // mask, t_enter, t_exit
-ray_box_intersection(
-    const glm::vec3 &ray_origin,
-    const glm::vec3 &ray_vector,
-    const glm::vec3 &aabb_min,
-    const glm::vec3 &aabb_max
+HitResult ray_box_intersection(
+    const Ray &ray,
+    const BBox &bbox
 ) {
-    glm::vec3 t1 = (aabb_min - ray_origin) / ray_vector;
-    glm::vec3 t2 = (aabb_max - ray_origin) / ray_vector;
+    glm::vec3 t1 = (bbox.min - ray.origin) / ray.vector;
+    glm::vec3 t2 = (bbox.max - ray.origin) / ray.vector;
 
     glm::vec3 tmin = glm::min(t1, t2);
     glm::vec3 tmax = glm::max(t1, t2);

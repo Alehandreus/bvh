@@ -101,7 +101,7 @@ HitResult bvh_traverse(
             const BVHNode &node = dp.nodes[node_idx];
 
             /* ==== intersect only node bbox ==== */
-            if (mode == TraverseMode::ALL_BBOXES) {
+            if (mode == TraverseMode::ANOTHER_BBOX) {
                 HitResult bbox_hit = ray_box_intersection(ray, node.bbox);
                 if (bbox_hit.hit) {
                     return bbox_hit;
@@ -124,6 +124,15 @@ HitResult bvh_traverse(
 
                 if (node_hit.hit && node_hit.t < closest_hit.t) {
                     closest_hit = node_hit;
+                }
+            }
+
+            /* ==== idk who needs this but return the closest bbox ==== */
+            else if (mode == TraverseMode::CLOSEST_BBOX) {
+                HitResult bbox_hit = ray_box_intersection(ray, node.bbox);
+                bbox_hit.node_idx = node_idx;
+                if (bbox_hit.hit && bbox_hit.t1 < closest_hit.t1) {
+                    closest_hit = bbox_hit;
                 }
             }
         }

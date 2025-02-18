@@ -20,15 +20,46 @@ pixels = np.hstack((
 origins = np.tile(origin, (pixels.shape[0], 1))
 directions = pixels - origins
 
-mask, t = loader.traverse_primitives(origins, directions)
-mask_img = mask.reshape(resolution, resolution)
+mode = "another_bbox"
+
+if mode == "closest_primitive":
+    mask, t = loader.closest_primitive(origins, directions)
+    mask_img = mask.reshape(resolution, resolution)
+
+if mode == "closest_bbox":
+    mask, bbox_idxs, t1, t2 = loader.closest_bbox(origins, directions)
+    mask_img = mask.reshape(resolution, resolution)
+    t = t1
+
+if mode == "random_bbox":
+    alive, mask, bbox_idxs, t1, t2 = loader.another_bbox(origins, directions)
+    mask_img = mask.reshape(resolution, resolution)
+    t = t1
+
+if mode == "another_bbox":
+    mask = np.array([False] * origins.shape[0])
+    bbox_idxs = np.zeros((origins.shape[0],), dtype=np.uint32)
+    t1 = np.ones((origins.shape[0],)) * 1e9
+    t2 = np.ones((origins.shape[0],)) * 1e9
+
+    alive = True
+    loader.reset_stack(origins.shape[0])
+    while alive:
+        alive, cur_mask, cur_bbox_idxs, cur_t1, cur_t2 = loader.another_bbox(origins, directions)
+        mask = mask | cur_mask
+        update_mask = cur_mask & (cur_t1 < t1)
+
+        bbox_idxs[update_mask] = cur_bbox_idxs[update_mask]
+        t1[update_mask] = cur_t1[update_mask]
+        t2[update_mask] = cur_t2[update_mask]
+
+    mask_img = mask.reshape(resolution, resolution)
+    t = t1
+    t[t == 1e9] = 0
+
 
 image = np.zeros((resolution, resolution, 3))
 
-print("Number of nodes: ", loader.n_nodes)
-print("Number of leaves: ", loader.n_leaves)
-
-# ==== grayscale ====
 img = t.reshape(resolution, resolution)
 img[~mask_img] = np.min(img[mask_img])
 img = (img - np.min(img)) / (np.max(img) - np.min(img))
@@ -41,4 +72,3 @@ plt.axis('off')
 plt.imshow(img, cmap='gray')
 plt.tight_layout()
 plt.savefig('output.png')
-# plt.show()

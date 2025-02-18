@@ -14,7 +14,6 @@
 #include <tuple>
 
 #include "utils.h"
-#include "cuda_compat.h"
 
 using std::cin, std::cout, std::endl;
 
@@ -156,7 +155,8 @@ struct StackInfo {
 
 enum TraverseMode {
     CLOSEST_PRIMITIVE,
-    ALL_BBOXES    
+    CLOSEST_BBOX,
+    ANOTHER_BBOX    
 };
 
 HitResult bvh_traverse(
@@ -203,33 +203,94 @@ struct BVH {
     void save_as_obj(const std::string &filename);
 
     // traverse single ray, use local stack to be thread-safe
-    HitResult traverse_primitives(const Ray &ray) const {
+    HitResult closest_primitive(const Ray &ray) const {
         std::vector<uint32_t> smol_stack(depth * 2, 0);
         int smol_stack_size = 1;
         StackInfo stack_info = {smol_stack_size, smol_stack.data()};
-        HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE);
-        return hit;
+
+        return bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE);
     }
 
-    // this is intended for python use, so structures like Ray and HitResult are not exposed
-    void traverse_primitives_batch(
+    int stack_reserve() const {
+        return depth * 2;
+    }
+
+    void reset_stack_batch(int n_rays) {
+        stack.resize(n_rays * stack_reserve());
+        std::fill(stack.begin(), stack.end(), 0);
+        stack_sizes.resize(n_rays, 1);
+    }
+
+    // this and others are intended for python use, so structures like Ray and HitResult are not exposed
+    void closest_primitive_batch(
         const glm::vec3 *ray_origins,
         const glm::vec3 *ray_vectors,
         bool *masks,
         float *t,
         int n_rays
     ) {
-        int one_stack_size = depth * 2;
-        stack.resize(n_rays * one_stack_size);
-        stack_sizes.resize(n_rays, 1);
+        reset_stack_batch(n_rays);
 
         #pragma omp parallel for
         for (int i = 0; i < n_rays; i++) {
             Ray ray = {ray_origins[i], ray_vectors[i]};
-            StackInfo stack_info = {stack_sizes[i], stack.data() + i * one_stack_size};
+            StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_reserve()};
+
             HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE);
             masks[i] = hit.hit;
             t[i] = hit.t;
         }
+    }
+
+    void closest_bbox_batch(
+        const glm::vec3 *ray_origins,
+        const glm::vec3 *ray_vectors,
+        bool *masks,
+        uint32_t *node_idxs,
+        float *t1,
+        float *t2,
+        int n_rays
+    ) {
+        reset_stack_batch(n_rays);
+
+        #pragma omp parallel for
+        for (int i = 0; i < n_rays; i++) {
+            Ray ray = {ray_origins[i], ray_vectors[i]};
+            StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_reserve()};
+
+            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_BBOX);
+            masks[i] = hit.hit;
+            node_idxs[i] = hit.node_idx;
+            t1[i] = hit.t1;
+            t2[i] = hit.t2;
+        }
+    }
+
+    bool another_bbox_batch(
+        const glm::vec3 *ray_origins,
+        const glm::vec3 *ray_vectors,
+        bool *masks,
+        uint32_t *node_idxs,
+        float *t1,
+        float *t2,
+        int n_rays
+    ) {
+        bool alive = false;
+
+        #pragma omp parallel for reduction(||: alive)
+        for (int i = 0; i < n_rays; i++) {
+            Ray ray = {ray_origins[i], ray_vectors[i]};
+            StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_reserve()};
+
+            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX);
+            masks[i] = hit.hit;
+            node_idxs[i] = hit.node_idx;
+            t1[i] = hit.t1;
+            t2[i] = hit.t2;
+
+            alive = alive || hit.hit;
+        }
+
+        return alive;
     }
 };

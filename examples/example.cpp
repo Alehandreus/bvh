@@ -58,7 +58,7 @@ int main() {
             float y_f = ((float)y / img_size - 0.5f) * 2;
 
             glm::vec3 dir = cam_dir + x_dir * x_f + y_dir * y_f;
-            HitResult hit = bvh.traverse_primitives({cam_pos, dir});
+            HitResult hit = bvh.closest_primitive({cam_pos, dir});
 
             if (hit.hit) {
                 float val = std::sinf(hit.t * glm::length(cam_dir) * 2) * 0.3f + 0.5f;

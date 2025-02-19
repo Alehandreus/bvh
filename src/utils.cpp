@@ -6,12 +6,12 @@
 using std::cin, std::cout, std::endl;
 
 // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
-HitResult ray_triangle_intersection(
+CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
     const Ray &ray,
     const Face& face,
     const glm::vec3 *vertices
 ) {
-    constexpr float epsilon = std::numeric_limits<float>::epsilon();
+    float epsilon = 0.0000001;
 
     const glm::vec3 &a = vertices[face.v1];
     const glm::vec3 &b = vertices[face.v2];
@@ -48,7 +48,7 @@ HitResult ray_triangle_intersection(
     return { false, 0 };
 }
 
-HitResult ray_box_intersection(
+CUDA_HOST_DEVICE HitResult ray_box_intersection(
     const Ray &ray,
     const BBox &bbox
 ) {
@@ -134,4 +134,24 @@ void SaveToBMP(const unsigned int *pixels, int width, int height, const char* fi
     }
 
     file.close();
+}
+
+int timer(bool start) {
+    static std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
+    if (start) {
+        start_time = std::chrono::high_resolution_clock::now();
+        return 0;
+    }
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    return duration.count();
+}
+
+void timer_start() {
+    timer(true);
+}
+
+int timer_stop() {
+    return timer(false);
 }

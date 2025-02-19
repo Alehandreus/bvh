@@ -79,6 +79,7 @@ void BVH::split_node(uint32_t node_idx, int cur_depth, int max_depth) {
     split_node(right_idx, cur_depth + 1, max_depth);
 }
 
+CUDA_HOST_DEVICE
 HitResult bvh_traverse(
     const Ray &ray,
     const BVHDataPointers &dp,
@@ -161,6 +162,34 @@ HitResult bvh_traverse(
 
     return closest_hit;
 }
+
+#ifdef CUDA_ENABLED
+CUDA_GLOBAL
+void closest_primitive_entry(
+    const glm::vec3 *ray_origins,
+    const glm::vec3 *ray_vectors,
+    const BVHDataPointers dp,
+    uint32_t *stack,
+    int *stack_sizes,
+    int stack_reserve,
+    bool *masks,
+    float *t,
+    int n_rays
+) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i >= n_rays) {
+        return;
+    }
+
+    Ray ray = {ray_origins[i], ray_vectors[i]};
+    StackInfo stack_info = {stack_sizes[i], stack + i * stack_reserve};
+
+    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::CLOSEST_PRIMITIVE);
+    masks[i] = hit.hit;
+    t[i] = hit.t;
+}
+#endif
 
 // thanks gpt-o1
 void BVH::save_as_obj(const std::string &filename) {

@@ -15,6 +15,11 @@
 
 #include "utils.h"
 
+#ifdef CUDA_ENABLED
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+#endif
+
 using std::cin, std::cout, std::endl;
 
 struct Mesh {
@@ -73,10 +78,10 @@ struct Mesh {
                 glm::vec3 mid2 = (vertices[face[1]] + vertices[face[2]]) / 2.0f;
                 glm::vec3 mid3 = (vertices[face[2]] + vertices[face[0]]) / 2.0f;
 
-                Face new_face1 = {face[0], vertices.size(), vertices.size() + 2};
-                Face new_face2 = {vertices.size(), face[1], vertices.size() + 1};
-                Face new_face3 = {vertices.size() + 2, vertices.size() + 1, face[2]};
-                Face new_face4 = {vertices.size(), vertices.size() + 1, vertices.size() + 2};
+                Face new_face1 = {face[0], size(vertices), size(vertices) + 2};
+                Face new_face2 = {size(vertices), face[1], size(vertices) + 1};
+                Face new_face3 = {size(vertices) + 2, size(vertices) + 1, face[2]};
+                Face new_face4 = {size(vertices), size(vertices) + 1, size(vertices) + 2};
 
                 faces[face_i] = new_face1;
                 faces.push_back(new_face2);
@@ -110,19 +115,19 @@ struct BVHNode {
     uint32_t left_first_prim;
     uint32_t n_prims;
 
-    inline bool is_leaf() const {
+    CUDA_HOST_DEVICE inline bool is_leaf() const {
         return n_prims > 0;
     }
 
-    inline uint32_t left() const {
+    CUDA_HOST_DEVICE inline uint32_t left() const {
         return left_first_prim;
     }
 
-    inline uint32_t right() const {
+    CUDA_HOST_DEVICE inline uint32_t right() const {
         return left_first_prim + 1;
     }
 
-    bool inside(glm::vec3 point) const {
+    CUDA_HOST_DEVICE bool inside(glm::vec3 point) const {
         return bbox.inside(point);
     }
 
@@ -159,12 +164,28 @@ enum TraverseMode {
     ANOTHER_BBOX    
 };
 
+CUDA_HOST_DEVICE
 HitResult bvh_traverse(
     const Ray &ray,
     const BVHDataPointers &dp,
     StackInfo &st,
     TraverseMode mode
 );
+
+#ifdef CUDA_ENABLED
+CUDA_GLOBAL
+void closest_primitive_entry(
+    const glm::vec3 *ray_origins,
+    const glm::vec3 *ray_vectors,
+    const BVHDataPointers dp,
+    uint32_t *stack,
+    int *stack_sizes,
+    int stack_reserve,
+    bool *masks,
+    float *t,
+    int n_rays
+);
+#endif
 
 struct BVH {
     Mesh mesh;
@@ -178,7 +199,14 @@ struct BVH {
     std::vector<uint32_t> stack;
     std::vector<int> stack_sizes;
 
-    BVH() {}
+    #ifdef CUDA_ENABLED
+    thrust::device_vector<glm::vec3> vertices_cuda;
+    thrust::device_vector<Face> faces_cuda;
+    thrust::device_vector<BVHNode> nodes_cuda;
+    thrust::device_vector<uint32_t> prim_idxs_cuda;
+    thrust::device_vector<uint32_t> stack_cuda;
+    thrust::device_vector<int> stack_sizes_cuda;
+    #endif
 
     void load_scene(const char *path) {
         mesh.load_scene(path);
@@ -188,16 +216,19 @@ struct BVH {
         mesh.split_faces(frac);
     }
 
-    int memory_bytes() {
-        return nodes.size() * sizeof(nodes[0]);
-    }
-
-    BVHDataPointers data_pointers() const {
-        return {mesh.vertices.data(), mesh.faces.data(), nodes.data(), prim_idxs.data()};
-    }
-
     void build_bvh(int max_depth);
     void split_node(uint32_t node, int depth, int max_depth);
+    
+    #ifdef CUDA_ENABLED
+    void cudify() {
+        vertices_cuda = mesh.vertices;
+        faces_cuda = mesh.faces;
+        nodes_cuda = nodes;
+        prim_idxs_cuda = prim_idxs;
+        stack_cuda = stack;
+        stack_sizes_cuda = stack_sizes;
+    }
+    #endif
 
     // save leaves as boxes in .obj file
     void save_as_obj(const std::string &filename);
@@ -211,6 +242,20 @@ struct BVH {
         return bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE);
     }
 
+    int memory_bytes() {
+        return nodes.size() * sizeof(nodes[0]);
+    }
+
+    BVHDataPointers data_pointers() const {
+        return {mesh.vertices.data(), mesh.faces.data(), nodes.data(), prim_idxs.data()};
+    }
+
+    #ifdef CUDA_ENABLED
+    BVHDataPointers data_pointers_cuda() const {
+        return {vertices_cuda.data().get(), faces_cuda.data().get(), nodes_cuda.data().get(), prim_idxs_cuda.data().get()};
+    }
+    #endif
+
     int stack_reserve() const {
         return depth * 2;
     }
@@ -221,6 +266,15 @@ struct BVH {
         stack_sizes.resize(n_rays, 1);
         std::fill(stack_sizes.begin(), stack_sizes.end(), 1);
     }
+
+    #ifdef CUDA_ENABLED
+    void reset_stack_cuda(int n_rays) {
+        stack_cuda.resize(n_rays * stack_reserve());
+        thrust::fill(stack_cuda.begin(), stack_cuda.end(), 0);
+        stack_sizes_cuda.resize(n_rays, 1);
+        thrust::fill(stack_sizes_cuda.begin(), stack_sizes_cuda.end(), 1);
+    }
+    #endif
 
     // this and others are intended for python use, so structures like Ray and HitResult are not exposed
     void closest_primitive_batch(
@@ -242,6 +296,32 @@ struct BVH {
             t[i] = hit.t;
         }
     }
+
+    #ifdef CUDA_ENABLED
+    void closest_primitive_cuda(
+        const glm::vec3 *ray_origins,
+        const glm::vec3 *ray_vectors,
+        bool *masks,
+        float *t,
+        int n_rays
+    ) {
+        reset_stack_cuda(n_rays);
+
+        closest_primitive_entry
+        <<< (n_rays + 31) / 32, 32 >>>
+        (
+            ray_origins,
+            ray_vectors,
+            data_pointers_cuda(),
+            stack_cuda.data().get(),
+            stack_sizes_cuda.data().get(),
+            stack_reserve(),
+            masks,
+            t,
+            n_rays
+        );
+    }
+    #endif
 
     void closest_bbox_batch(
         const glm::vec3 *ray_origins,

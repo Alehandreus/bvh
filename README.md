@@ -6,7 +6,7 @@ BVH implementation for [neural-intersection](https://github.com/Alehandreus/neur
 * NumPy bindings
 
 ## Requirements
-* **assimp**, **glm** **openmp**
+* **assimp**, **glm**, **openmp**
     * `sudo pacman -S assimp glm openmp`
     * `sudo apt install libassimp-dev libglm-dev` (probably)
 * **CUDA**

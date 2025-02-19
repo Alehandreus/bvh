@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from bvh import BVH
 
 loader = BVH()
-loader.load_scene("suzanne2.fbx")
+loader.load_scene("suzanne.fbx")
 loader.build_bvh(15)
 
 resolution = 1000
@@ -32,6 +32,7 @@ if mode == "closest_bbox":
     t = t1
 
 if mode == "random_bbox":
+    loader.reset_stack(origins.shape[0])
     alive, mask, bbox_idxs, t1, t2 = loader.another_bbox(origins, directions)
     mask_img = mask.reshape(resolution, resolution)
     t = t1

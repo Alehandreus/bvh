@@ -1,22 +1,13 @@
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <omp.h>
-
-#include <tuple>
+#include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
 
 #include "bvh.h"
 
-namespace py = pybind11;
+namespace nb = nanobind;
 
-void throw_if_false(bool condition, const std::string &message) {
-    if (!condition) {
-        throw std::runtime_error(message);
-    }
-}
-
-PYBIND11_MODULE(bvh, m) {
-    py::class_<BVH>(m, "BVH")
-        .def(py::init<>())
+NB_MODULE(bvh_impl, m) {
+    nb::class_<BVH>(m, "BVH")
+        .def(nb::init<>())
         .def("load_scene", &BVH::load_scene)
         .def("split_faces", &BVH::split_faces)
         .def("memory_bytes", &BVH::memory_bytes)
@@ -24,126 +15,94 @@ PYBIND11_MODULE(bvh, m) {
         .def("save_as_obj", &BVH::save_as_obj)
         .def("closest_primitive", [](
             BVH& self,
-            py::array_t<float> ray_origins,
-            py::array_t<float> ray_vectors
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_vectors
         ) {
-            auto ray_origins_buf = ray_origins.request();
-            auto ray_vectors_buf = ray_vectors.request();
+            int n_rays = ray_origins.shape(0);
 
-            int n_rays = ray_origins_buf.shape[0];
+            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
+            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
 
-            throw_if_false(ray_vectors_buf.shape[0] == n_rays, "Mismatched shapes!");
-            throw_if_false(ray_origins_buf.ndim == 2 && ray_origins_buf.shape[1] == 3, "ray_origins must have shape (N,3)");
-            throw_if_false(ray_origins_buf.itemsize == sizeof(float), "ray_origins must have dtype float32");
-            throw_if_false(ray_vectors_buf.ndim == 2 && ray_vectors_buf.shape[1] == 3, "ray_vectors must have shape (N,3)");
-            throw_if_false(ray_vectors_buf.itemsize == sizeof(float), "ray_vectors must have dtype float32");
-
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.request().ptr;
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.request().ptr;
-
-            py::array_t<bool> mask({n_rays});
-            py::array_t<float> t({n_rays});
-
-            bool *mask_ptr = (bool *) mask.request().ptr;
-            float *t_ptr = (float *) t.request().ptr;
+            bool *mask_ptr = new bool[n_rays];
+            float *t_ptr = new float[n_rays];
 
             self.closest_primitive_batch(ray_origins_ptr, ray_vectors_ptr, mask_ptr, t_ptr, n_rays);
 
-            return std::make_tuple(mask, t);
+            auto mask = nb::ndarray<bool, nb::numpy>(mask_ptr, {n_rays});
+            auto t = nb::ndarray<float, nb::numpy>(t_ptr, {n_rays});
+
+            return nb::make_tuple(mask, t);
         })
         .def("closest_bbox", [](
             BVH& self,
-            py::array_t<float> ray_origins,
-            py::array_t<float> ray_vectors
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_vectors
         ) {
-            auto ray_origins_buf = ray_origins.request();
-            auto ray_vectors_buf = ray_vectors.request();
+            int n_rays = ray_origins.shape(0);
 
-            int n_rays = ray_origins_buf.shape[0];
+            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
+            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
 
-            throw_if_false(ray_vectors_buf.shape[0] == n_rays, "Mismatched shapes!");
-            throw_if_false(ray_origins_buf.ndim == 2 && ray_origins_buf.shape[1] == 3, "ray_origins must have shape (N,3)");
-            throw_if_false(ray_origins_buf.itemsize == sizeof(float), "ray_origins must have dtype float32");
-            throw_if_false(ray_vectors_buf.ndim == 2 && ray_vectors_buf.shape[1] == 3, "ray_vectors must have shape (N,3)");
-            throw_if_false(ray_vectors_buf.itemsize == sizeof(float), "ray_vectors must have dtype float32");
-
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.request().ptr;
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.request().ptr;
-
-            py::array_t<bool> mask({n_rays});
-            py::array_t<uint32_t> node_idxs({n_rays});
-            py::array_t<float> t1({n_rays}), t2({n_rays});
-
-            bool *mask_ptr = (bool *) mask.request().ptr;
-            uint32_t *node_idxs_ptr = (uint32_t *) node_idxs.request().ptr;
-            float *t1_ptr = (float *) t1.request().ptr;
-            float *t2_ptr = (float *) t2.request().ptr;
+            bool *mask_ptr = new bool[n_rays];
+            uint32_t *node_idxs_ptr = new uint32_t[n_rays];
+            float *t1_ptr = new float[n_rays];
+            float *t2_ptr = new float[n_rays];
 
             self.closest_bbox_batch(ray_origins_ptr, ray_vectors_ptr, mask_ptr, node_idxs_ptr, t1_ptr, t2_ptr, n_rays);
 
-            return std::make_tuple(mask, node_idxs, t1, t2);
+            auto mask = nb::ndarray<bool, nb::numpy>(mask_ptr, {n_rays});
+            auto node_idxs = nb::ndarray<uint32_t, nb::numpy>(node_idxs_ptr, {n_rays});
+            auto t1 = nb::ndarray<float, nb::numpy>(t1_ptr, {n_rays});
+            auto t2 = nb::ndarray<float, nb::numpy>(t2_ptr, {n_rays});
+
+            return nb::make_tuple(mask, node_idxs, t1, t2);
         })
         .def("reset_stack", &BVH::reset_stack_batch)
         .def("another_bbox", [](
             BVH& self,
-            py::array_t<float> ray_origins,
-            py::array_t<float> ray_vectors
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_vectors
         ) {
-            auto ray_origins_buf = ray_origins.request();
-            auto ray_vectors_buf = ray_vectors.request();
+            int n_rays = ray_origins.shape(0);
 
-            int n_rays = ray_origins_buf.shape[0];
+            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
+            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
 
-            throw_if_false(ray_vectors_buf.shape[0] == n_rays, "Mismatched shapes!");
-            throw_if_false(ray_origins_buf.ndim == 2 && ray_origins_buf.shape[1] == 3, "ray_origins must have shape (N,3)");
-            throw_if_false(ray_origins_buf.itemsize == sizeof(float), "ray_origins must have dtype float32");
-            throw_if_false(ray_vectors_buf.ndim == 2 && ray_vectors_buf.shape[1] == 3, "ray_vectors must have shape (N,3)");
-            throw_if_false(ray_vectors_buf.itemsize == sizeof(float), "ray_vectors must have dtype float32");
-
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.request().ptr;
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.request().ptr;
-
-            py::array_t<bool> mask({n_rays});
-            py::array_t<uint32_t> node_idxs({n_rays});
-            py::array_t<float> t1({n_rays}), t2({n_rays});
-
-            bool *mask_ptr = (bool *) mask.request().ptr;
-            uint32_t *node_idxs_ptr = (uint32_t *) node_idxs.request().ptr;
-            float *t1_ptr = (float *) t1.request().ptr;
-            float *t2_ptr = (float *) t2.request().ptr;
+            bool *mask_ptr = new bool[n_rays];
+            uint32_t *node_idxs_ptr = new uint32_t[n_rays];
+            float *t1_ptr = new float[n_rays];
+            float *t2_ptr = new float[n_rays];
 
             bool alive = self.another_bbox_batch(ray_origins_ptr, ray_vectors_ptr, mask_ptr, node_idxs_ptr, t1_ptr, t2_ptr, n_rays);
 
-            return std::make_tuple(alive, mask, node_idxs, t1, t2);
+            auto mask = nb::ndarray<bool, nb::numpy>(mask_ptr, {n_rays});
+            auto node_idxs = nb::ndarray<uint32_t, nb::numpy>(node_idxs_ptr, {n_rays});
+            auto t1 = nb::ndarray<float, nb::numpy>(t1_ptr, {n_rays});
+            auto t2 = nb::ndarray<float, nb::numpy>(t2_ptr, {n_rays});
+
+            return nb::make_tuple(alive, mask, node_idxs, t1, t2);
         })
         .def("segments", [](
             BVH& self,
-            py::array_t<float> ray_origins,
-            py::array_t<float> ray_vectors,
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_vectors,
             int n_segments
         ) {
-            auto ray_origins_buf = ray_origins.request();
-            auto ray_vectors_buf = ray_vectors.request();
+            int n_rays = ray_origins.shape(0);
 
-            int n_rays = ray_origins_buf.shape[0];
+            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
+            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
 
-            throw_if_false(ray_vectors_buf.shape[0] == n_rays, "Mismatched shapes!");
-            throw_if_false(ray_origins_buf.ndim == 2 && ray_origins_buf.shape[1] == 3, "ray_origins must have shape (N,3)");
-            throw_if_false(ray_origins_buf.itemsize == sizeof(float), "ray_origins must have dtype float32");
-            throw_if_false(ray_vectors_buf.ndim == 2 && ray_vectors_buf.shape[1] == 3, "ray_vectors must have shape (N,3)");
-            throw_if_false(ray_vectors_buf.itemsize == sizeof(float), "ray_vectors must have dtype float32");
-
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.request().ptr;
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.request().ptr;
-
-            py::array_t<bool> segments({n_rays, n_segments});
-            bool *segments_ptr = (bool *) segments.request().ptr;
+            bool *segments_ptr = new bool[n_rays * n_segments];
 
             self.segments_batch(ray_origins_ptr, ray_vectors_ptr, segments_ptr, n_rays, n_segments);
 
+            auto segments = nb::ndarray<bool, nb::numpy>(segments_ptr, {n_rays, n_segments});
+
             return segments;
         })
-        .def_readonly("depth", &BVH::depth)
-        .def_readonly("n_nodes", &BVH::n_nodes)
-        .def_readonly("n_leaves", &BVH::n_leaves);
+        .def_ro("depth", &BVH::depth)
+        .def_ro("n_nodes", &BVH::n_nodes)
+        .def_ro("n_leaves", &BVH::n_leaves)
+    ;
 }

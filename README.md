@@ -1,5 +1,5 @@
 ### BVH Tree
-BVH implementation for [neural-intersection](https://github.com/Alehandreus/neural-intersection) repo. Early release. But GUESS WHAT? PYTHON BINDINGS ARE ALREADY HERE! See `tests/test.py`
+BVH implementation for [neural-intersection](https://github.com/Alehandreus/neural-intersection) repo. Early release. But GUESS WHAT? PYTHON BINDINGS ARE ALREADY HERE!
 
 ## Features
 * Large primitive splitting as preprocessing step

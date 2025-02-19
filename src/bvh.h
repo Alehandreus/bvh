@@ -219,6 +219,7 @@ struct BVH {
         stack.resize(n_rays * stack_reserve());
         std::fill(stack.begin(), stack.end(), 0);
         stack_sizes.resize(n_rays, 1);
+        std::fill(stack_sizes.begin(), stack_sizes.end(), 1);
     }
 
     // this and others are intended for python use, so structures like Ray and HitResult are not exposed
@@ -292,5 +293,45 @@ struct BVH {
         }
 
         return alive;
+    }
+
+    // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
+    void segments_batch(
+        const glm::vec3 *ray_origins,
+        const glm::vec3 *ray_vectors, // ray_origins and ray_origins + ray_vectors are segment edges
+        bool *segments,
+        int n_rays,
+        int n_segments
+    ) {
+        reset_stack_batch(n_rays);
+        std::fill(segments, segments + n_rays * n_segments, false);
+        float eps = 1e-6;
+
+        #pragma omp parallel for
+        for (int i = 0; i < n_rays; i++) {
+            bool *cur_segments = segments + i * n_segments;
+
+            Ray ray = {ray_origins[i], ray_vectors[i]};
+            StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_reserve()};
+
+            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX);
+            while (hit.hit) {                
+                float t1 = hit.t1;
+                float t2 = hit.t2;
+
+                t1 = std::max(t1, -eps);
+                t2 = std::max(t2, -eps);
+
+                uint32_t segment1 = (uint32_t) ((t1 - eps) * n_segments);
+                uint32_t segment2 = (uint32_t) ((t2 + eps) * n_segments) + 1;
+
+                segment1 = std::clamp(segment1, 0u, (uint32_t) n_segments - 1);
+                segment2 = std::clamp(segment2, 1u, (uint32_t) n_segments);
+
+                std::fill(cur_segments + segment1, cur_segments + segment2, true);
+
+                hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX);
+            };
+        }
     }
 };

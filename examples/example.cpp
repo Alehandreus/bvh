@@ -5,7 +5,7 @@ int main() {
     BVH bvh;
 
     cout << "Loading scene..." << endl;
-    bvh.load_scene("suzanne.fbx");
+    bvh.load_scene("lego_decimated.stl");
     cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
     cout << "Number of faces: " << bvh.mesh.faces.size() << endl;
 

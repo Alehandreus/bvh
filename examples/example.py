@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from bvh import BVH
 
 loader = BVH()
-loader.load_scene("suzanne.fbx")
+loader.load_scene("suzanne2.fbx")
 loader.build_bvh(15)
 
 resolution = 1000
@@ -20,7 +20,7 @@ pixels = np.hstack((
 origins = np.tile(origin, (pixels.shape[0], 1))
 directions = pixels - origins
 
-mode = "another_bbox"
+mode = "closest_primitive"
 
 if mode == "closest_primitive":
     mask, t = loader.closest_primitive(origins, directions)

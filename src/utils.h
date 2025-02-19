@@ -74,8 +74,8 @@ struct HitResult {
         };
     };
 
+    HitResult() : hit(false), t(0) {}
     HitResult(bool hit, float t) : hit(hit), t(t) {}
-
     HitResult(bool hit, float t1, float t2) : hit(hit), t1(t1), t2(t2) {}
 };
 

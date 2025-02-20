@@ -18,6 +18,7 @@
 #ifdef CUDA_ENABLED
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include <cuda_runtime.h>
 #endif
 
 using std::cin, std::cout, std::endl;
@@ -173,8 +174,7 @@ HitResult bvh_traverse(
 );
 
 #ifdef CUDA_ENABLED
-CUDA_GLOBAL
-void closest_primitive_entry(
+CUDA_GLOBAL void closest_primitive_entry(
     const glm::vec3 *ray_origins,
     const glm::vec3 *ray_vectors,
     const BVHDataPointers dp,
@@ -184,6 +184,18 @@ void closest_primitive_entry(
     bool *masks,
     float *t,
     int n_rays
+);
+
+CUDA_GLOBAL void segments_entry(
+    const glm::vec3 *ray_origins,
+    const glm::vec3 *ray_vectors, // ray_origins and ray_origins + ray_vectors are segment edges
+    const BVHDataPointers dp,
+    uint32_t *stack,
+    int *stack_sizes,
+    int stack_reserve,
+    bool *segments,
+    int n_rays,
+    int n_segments
 );
 #endif
 
@@ -319,6 +331,32 @@ struct BVH {
             masks,
             t,
             n_rays
+        );
+    }
+
+    void segments_cuda(
+        const glm::vec3 *ray_origins,
+        const glm::vec3 *ray_vectors,
+        bool *segments,
+        int n_rays,
+        int n_segments
+    ) {
+        reset_stack_cuda(n_rays);
+        
+        cudaMemset(segments, 0, n_rays * n_segments * sizeof(bool));
+
+        segments_entry
+        <<< (n_rays + 31) / 32, 32 >>>
+        (
+            ray_origins,
+            ray_vectors,
+            data_pointers_cuda(),
+            stack_cuda.data().get(),
+            stack_sizes_cuda.data().get(),
+            stack_reserve(),
+            segments,
+            n_rays,
+            n_segments
         );
     }
     #endif

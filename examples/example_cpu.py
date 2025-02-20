@@ -24,17 +24,14 @@ mode = "closest_primitive"
 
 if mode == "closest_primitive":
     mask, t = loader.closest_primitive(origins, directions)
-    mask_img = mask.reshape(resolution, resolution)
 
 if mode == "closest_bbox":
     mask, bbox_idxs, t1, t2 = loader.closest_bbox(origins, directions)
-    mask_img = mask.reshape(resolution, resolution)
     t = t1
 
 if mode == "random_bbox":
     loader.reset_stack(origins.shape[0])
     alive, mask, bbox_idxs, t1, t2 = loader.another_bbox(origins, directions)
-    mask_img = mask.reshape(resolution, resolution)
     t = t1
 
 if mode == "another_bbox":
@@ -54,10 +51,10 @@ if mode == "another_bbox":
         t1[update_mask] = cur_t1[update_mask]
         t2[update_mask] = cur_t2[update_mask]
 
-    mask_img = mask.reshape(resolution, resolution)
     t = t1
     t[t == 1e9] = 0
 
+mask_img = mask.reshape(resolution, resolution)
 
 image = np.zeros((resolution, resolution, 3))
 

@@ -2,3 +2,4 @@ nanobind
 numpy
 scipy
 matplotlib
+torch

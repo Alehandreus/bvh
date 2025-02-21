@@ -9,6 +9,8 @@
 
 namespace nb = nanobind;
 
+using Vector3f = nb::ndarray<float, nb::numpy, nb::shape<3>>;
+
 struct HitResultCuda {
     bool *mask_ptr;
     union {
@@ -43,6 +45,16 @@ NB_MODULE(bvh_impl, m) {
         .def("memory_bytes", &BVH::memory_bytes)
         .def("build_bvh", &BVH::build_bvh)
         .def("save_as_obj", &BVH::save_as_obj)
+        .def("mesh_bounds", [](
+            BVH& self
+        ) {
+            auto [min, max] = self.mesh.bounds();
+
+            return nb::make_tuple(
+                Vector3f(&min).cast(),
+                Vector3f(&max).cast()
+            );
+        })
         .def("closest_primitive", [](
             BVH& self,
             nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,

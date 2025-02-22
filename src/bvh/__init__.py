@@ -1,1 +1,1 @@
-from .bvh_impl import BVH
+from .bvh_impl import BVH, Mesh

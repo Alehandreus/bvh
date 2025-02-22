@@ -5,6 +5,80 @@
 
 using std::cin, std::cout, std::endl;
 
+#include <iostream>
+#include <vector>
+#include <chrono>
+
+#include <glm/glm.hpp>
+
+#include "cuda_compat.h"
+
+using std::cout, std::endl;
+
+CUDA_HOST_DEVICE Ray::Ray(const glm::vec3 &origin, const glm::vec3 &vector) : origin(origin), vector(vector) {}
+
+// size_t to uint32_t causes narrowing conversion warning
+// no templates this time
+uint32_t size(const std::vector<float> &v) {
+    return v.size();
+}
+uint32_t size(const std::vector<uint32_t> &v) {
+    return v.size();
+}
+uint32_t size(const std::vector<glm::vec3> &v) {
+    return v.size();
+}
+
+Face::Face(uint32_t v1, uint32_t v2, uint32_t v3) : v1(v1), v2(v2), v3(v3) {}
+
+void Face::calc_centroid(const glm::vec3 *vertices) {
+    centroid = (vertices[v1] + vertices[v2] + vertices[v3]) / 3.0f;
+}
+
+float Face::extent(const glm::vec3 *vertices) const {
+    glm::vec3 min = vertices[v1];
+    glm::vec3 max = vertices[v1];
+
+    for (int i = 1; i < 3; i++) {
+        min = glm::min(min, vertices[operator[](i)]);
+        max = glm::max(max, vertices[operator[](i)]);
+    }
+
+    return glm::length(max - min);
+}
+
+uint32_t Face::operator[](uint32_t i) const {
+    switch (i) {
+        case 0: return v1;
+        case 1: return v2;
+        case 2: return v3;
+        default: return 0;
+    }
+}
+
+CUDA_HOST_DEVICE BBox::BBox() : min(FLT_MAX), max(-FLT_MAX) {}
+
+CUDA_HOST_DEVICE void BBox::update(const glm::vec3 &point) {
+    min = glm::min(min, point);
+    max = glm::max(max, point);
+}
+
+CUDA_HOST_DEVICE bool BBox::inside(const glm::vec3 &point) const {
+    return point.x >= min.x && point.x <= max.x &&
+            point.y >= min.y && point.y <= max.y &&
+            point.z >= min.z && point.z <= max.z;
+}
+
+CUDA_HOST_DEVICE glm::vec3 BBox::diagonal() const {
+    return max - min;
+}
+
+CUDA_HOST_DEVICE HitResult::HitResult() : hit(false), t(0) {}
+
+CUDA_HOST_DEVICE HitResult::HitResult(bool hit, float t) : hit(hit), t(t) {}
+
+CUDA_HOST_DEVICE HitResult::HitResult(bool hit, float t1, float t2) : hit(hit), t1(t1), t2(t2) {}
+
 // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
 CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
     const Ray &ray,
@@ -69,7 +143,7 @@ CUDA_HOST_DEVICE HitResult ray_box_intersection(
 }
 
 // thanks copilot
-void SaveToBMP(const unsigned int *pixels, int width, int height, const char* filename) {
+void save_to_bmp(const unsigned int *pixels, int width, int height, const char* filename) {
     // File header (14 bytes)
     unsigned char fileHeader[14] = {
         'B', 'M', // Magic identifier

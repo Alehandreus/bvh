@@ -38,23 +38,26 @@ struct HitResultCuda {
 };
 
 NB_MODULE(bvh_impl, m) {
-    nb::class_<BVH>(m, "BVH")
-        .def(nb::init<>())
-        .def("load_scene", &BVH::load_scene)
-        .def("split_faces", &BVH::split_faces)
-        .def("memory_bytes", &BVH::memory_bytes)
-        .def("build_bvh", &BVH::build_bvh)
-        .def("save_as_obj", &BVH::save_as_obj)
-        .def("mesh_bounds", [](
-            BVH& self
+    nb::class_<Mesh>(m, "Mesh")
+        .def(nb::init<const char *>())
+        .def("split_faces", &Mesh::split_faces)
+        .def("bounds", [](
+            Mesh& self
         ) {
-            auto [min, max] = self.mesh.bounds();
+            auto [min, max] = self.bounds();
 
             return nb::make_tuple(
                 Vector3f(&min).cast(),
                 Vector3f(&max).cast()
             );
         })
+    ;
+
+    nb::class_<BVH>(m, "BVH")
+        .def(nb::init<const Mesh&>())
+        .def("memory_bytes", &BVH::memory_bytes)
+        .def("build_bvh", &BVH::build_bvh)
+        .def("save_as_obj", &BVH::save_as_obj)
         .def("closest_primitive", [](
             BVH& self,
             nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,

@@ -1,11 +1,6 @@
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
 #include <glm/glm.hpp>
 #include <omp.h>
 
-#include <iostream>
-#include <vector>
 #include <fstream>
 #include <string>
 #include <functional>
@@ -14,102 +9,13 @@
 #include <tuple>
 
 #include "utils.h"
+#include "mesh.h"
 
 #ifdef CUDA_ENABLED
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <cuda_runtime.h>
 #endif
-
-using std::cin, std::cout, std::endl;
-
-struct Mesh {
-    std::vector<glm::vec3> vertices;
-    std::vector<Face> faces;
-
-    Mesh() {}
-
-    // https://learnopengl.com/Model-Loading/Model
-    void load_scene(const char *scene_path) {
-        Assimp::Importer importer;
-        const aiScene *scene = importer.ReadFile(scene_path, aiProcess_Triangulate | aiProcess_JoinIdenticalVertices);
-        if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
-            cout << "Assimp error: " << importer.GetErrorString() << endl;
-            exit(1);
-        }
-
-        vertices.clear();
-        faces.clear();
-
-        for (int mesh_i = 0; mesh_i < scene->mNumMeshes; mesh_i++) {
-            aiMesh *ai_mesh = scene->mMeshes[mesh_i];
-
-            for (int vertex_i = 0; vertex_i < ai_mesh->mNumVertices; vertex_i++) {
-                aiVector3D vertex = ai_mesh->mVertices[vertex_i];
-                vertices.push_back(glm::vec3(vertex.x, vertex.y, vertex.z));
-            }
-
-            for (int face_i = 0; face_i < ai_mesh->mNumFaces; face_i++) {
-                aiFace face = ai_mesh->mFaces[face_i];
-                for (int index_i = 0; index_i < face.mNumIndices; index_i++) {
-                    faces.push_back({face.mIndices[0], face.mIndices[1], face.mIndices[2]});
-                }
-            }
-        }
-    }
-
-    void split_faces(float frac) {
-        std::vector<float> extents;
-        for (int i = 0; i < faces.size(); i++) {
-            Face &face = faces[i];
-            float extent = face.extent(vertices.data());
-            extents.push_back(extent);
-        }
-
-        std::sort(extents.begin(), extents.end());
-
-        float threshold = extents[extents.size() * frac];
-
-        for (int face_i = 0; face_i < faces.size();) {
-            Face face = faces[face_i];
-            float extent = face.extent(vertices.data());
-
-            if (extent > threshold) {
-                glm::vec3 mid1 = (vertices[face[0]] + vertices[face[1]]) / 2.0f;
-                glm::vec3 mid2 = (vertices[face[1]] + vertices[face[2]]) / 2.0f;
-                glm::vec3 mid3 = (vertices[face[2]] + vertices[face[0]]) / 2.0f;
-
-                Face new_face1 = {face[0], size(vertices), size(vertices) + 2};
-                Face new_face2 = {size(vertices), face[1], size(vertices) + 1};
-                Face new_face3 = {size(vertices) + 2, size(vertices) + 1, face[2]};
-                Face new_face4 = {size(vertices), size(vertices) + 1, size(vertices) + 2};
-
-                faces[face_i] = new_face1;
-                faces.push_back(new_face2);
-                faces.push_back(new_face3);
-                faces.push_back(new_face4);
-
-                vertices.push_back(mid1);
-                vertices.push_back(mid2);
-                vertices.push_back(mid3);
-            } else {
-                face_i++;
-            }
-        }
-    }
-
-    std::tuple<glm::vec3, glm::vec3> bounds() {
-        glm::vec3 min(FLT_MAX);
-        glm::vec3 max(-FLT_MAX);
-
-        for (const glm::vec3 &vertex : vertices) {
-            min = glm::min(min, vertex);
-            max = glm::max(max, vertex);
-        }
-
-        return {min, max};
-    }
-};
 
 struct BVHNode {
     BBox bbox;
@@ -200,7 +106,7 @@ CUDA_GLOBAL void segments_entry(
 #endif
 
 struct BVH {
-    Mesh mesh;
+    const Mesh &mesh;
     std::vector<BVHNode> nodes;
     std::vector<uint32_t> prim_idxs;
 
@@ -220,13 +126,7 @@ struct BVH {
     thrust::device_vector<int> stack_sizes_cuda;
     #endif
 
-    void load_scene(const char *path) {
-        mesh.load_scene(path);
-    }
-
-    void split_faces(float frac) {
-        mesh.split_faces(frac);
-    }
+    BVH(const Mesh &mesh) : mesh(mesh) {}
 
     void build_bvh(int max_depth);
     void split_node(uint32_t node, int depth, int max_depth);

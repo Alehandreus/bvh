@@ -5,23 +5,23 @@
 
 int main() {
     /* ==== BVH library methods ==== */
-    BVH bvh;
 
     cout << "Loading scene..." << endl;
-    bvh.load_scene("suzanne.fbx");
-    cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
-    cout << "Number of faces: " << bvh.mesh.faces.size() << endl;
+    Mesh mesh("suzanne.fbx");
+    cout << "Number of vertices: " << mesh.vertices.size() << endl;
+    cout << "Number of faces: " << mesh.faces.size() << endl;
 
     cout << endl;
 
     cout << "Splitting faces..." << endl;
-    bvh.split_faces(0.9);
-    cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
-    cout << "Number of faces: " << bvh.mesh.faces.size() << endl;
+    mesh.split_faces(0.9);
+    cout << "Number of vertices: " << mesh.vertices.size() << endl;
+    cout << "Number of faces: " << mesh.faces.size() << endl;
 
     cout << endl;
 
     cout << "Building BVH..." << endl;
+    BVH bvh(mesh);
     bvh.build_bvh(15);
     cout << "Depth: " << bvh.depth << endl;
     cout << "Number of nodes: " << bvh.n_nodes << endl;
@@ -115,7 +115,7 @@ int main() {
         pixels[i] = (255 << 24) | ((int)(val * 255) << 16) | ((int)(val * 255) << 8) | (int)(val * 255);
     }
     cout << "Saving image..." << endl;
-    SaveToBMP(pixels.data(), img_size, img_size, "output.bmp");
+    save_to_bmp(pixels.data(), img_size, img_size, "output.bmp");
 
     return 0;
 }

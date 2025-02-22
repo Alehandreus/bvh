@@ -79,7 +79,7 @@ int main() {
         pixels[i] = (255 << 24) | ((int)(img[i].z * 255) << 16) | ((int)(img[i].y * 255) << 8) | (int)(img[i].x * 255);
     }
     cout << "Saving image..." << endl;
-    SaveToBMP(pixels.data(), img_size, img_size, "output.bmp");
+    save_to_bmp(pixels.data(), img_size, img_size, "output.bmp");
 
     return 0;
 }

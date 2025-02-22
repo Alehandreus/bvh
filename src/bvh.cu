@@ -8,10 +8,6 @@ void BVH::build_bvh(int max_depth) {
     for (int i = 0; i < mesh.faces.size(); i++) {
         prim_idxs.push_back(i);
     }
-
-    for (int i = 0; i < n_faces; i++) {
-        mesh.faces[i].calc_centroid(mesh.vertices.data());
-    }
     
     BVHNode& root = nodes[0];
     root.left_first_prim = 0;

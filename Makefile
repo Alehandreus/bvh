@@ -1,8 +1,8 @@
 build_gpu:
 	nvcc \
 	examples/example.cu \
-	src/bvh.cpp \
-	src/utils.cpp \
+	src/bvh.cu \
+	src/utils.cu \
 	-lassimp \
 	-O3 \
 	-x cu \

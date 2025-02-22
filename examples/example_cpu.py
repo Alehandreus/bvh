@@ -1,13 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bvh import BVH
+from bvh import BVH, Mesh
 
 
 # ==== Load and prepare BVH ==== #
 
-loader = BVH()
-loader.load_scene("suzanne.fbx")
+mesh = Mesh("suzanne.fbx")
+mesh.split_faces(0.9)
+
+loader = BVH(mesh)
 loader.build_bvh(25)
 
 img_size = 1000
@@ -16,7 +18,7 @@ n_pixels = img_size * img_size
 
 # ==== Generate rays ==== #
 
-mesh_min, mesh_max = loader.mesh_bounds()
+mesh_min, mesh_max = mesh.bounds()
 max_extent = max(mesh_max - mesh_min)
 
 center = (mesh_max + mesh_min) * 0.5

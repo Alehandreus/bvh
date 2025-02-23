@@ -2,15 +2,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
-from bvh import BVH
+from bvh import Mesh, CPUBuilder, GPUTraverser
 
 
 # ==== Load and prepare BVH ==== #
 
-loader = BVH()
-loader.load_scene("suzanne.fbx")
-loader.build_bvh(25)
-loader.cudify()
+mesh = Mesh("suzanne.fbx")
+mesh.split_faces(0.9)
+
+builder = CPUBuilder(mesh)
+bvh_data = builder.build_bvh(25)
+bvh = GPUTraverser(bvh_data)
 
 img_size = 1000
 n_pixels = img_size * img_size
@@ -18,7 +20,7 @@ n_pixels = img_size * img_size
 
 # ==== Generate rays ==== #
 
-mesh_min, mesh_max = loader.mesh_bounds()
+mesh_min, mesh_max = mesh.bounds()
 max_extent = max(mesh_max - mesh_min)
 
 center = (mesh_max + mesh_min) * 0.5
@@ -56,7 +58,7 @@ d_dirs = torch.from_numpy(dirs).cuda()
 mode = "closest_primitive"
 
 if mode == "closest_primitive":
-    mask, t = loader.closest_primitive_cuda(d_cam_poses, d_dirs)
+    mask, t = bvh.closest_primitive(d_cam_poses, d_dirs)
 
 
 # ==== Visualize ==== #

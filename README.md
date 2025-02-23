@@ -1,8 +1,9 @@
 ### BVH Tree
-BVH implementation for [neural-intersection](https://github.com/Alehandreus/neural-intersection) repo. Early release. But GUESS WHAT? PYTHON BINDINGS ARE ALREADY HERE!
+C++ / CUDA implementation of BVH Tree for [neural-intersection](https://github.com/Alehandreus/neural-intersection) repo.
 
 ## Features
 * Large primitive splitting as preprocessing step
+* CUDA traversal
 * NumPy / PyTorch bindings
 
 ## Requirements
@@ -15,12 +16,18 @@ BVH implementation for [neural-intersection](https://github.com/Alehandreus/neur
 
 ## Installation
 
-To install as a Python package, run
+Building Python package without GPU support is not implemented. A day may come when the necessary CMake logic is added, but it is not this day. This day just run
 ```
 pip install .
 ```
 
-To build and run with GPU support, run
+To build and run CPU-only C++ example, run
+```
+make build_cpu
+make run
+```
+
+To build and run C++ example with GPU support, run
 ```
 make build_gpu
 make run

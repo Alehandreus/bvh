@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bvh import BVH, Mesh
+from bvh import Mesh, CPUBuilder, CPUTraverser
 
 
 # ==== Load and prepare BVH ==== #
@@ -9,8 +9,9 @@ from bvh import BVH, Mesh
 mesh = Mesh("suzanne.fbx")
 mesh.split_faces(0.9)
 
-loader = BVH(mesh)
-loader.build_bvh(25)
+builder = CPUBuilder(mesh)
+bvh_data = builder.build_bvh(25)
+bvh = CPUTraverser(bvh_data)
 
 img_size = 1000
 n_pixels = img_size * img_size
@@ -53,15 +54,15 @@ dirs = cam_dir[None, :] + x_dir[None, :] * x_coords[:, None] + y_dir[None, :] * 
 mode = "closest_primitive"
 
 if mode == "closest_primitive":
-    mask, t = loader.closest_primitive(cam_poses, dirs)
+    mask, t = bvh.closest_primitive(cam_poses, dirs)
 
 if mode == "closest_bbox":
-    mask, bbox_idxs, t1, t2 = loader.closest_bbox(cam_poses, dirs)
+    mask, bbox_idxs, t1, t2 = bvh.closest_bbox(cam_poses, dirs)
     t = t1
 
 if mode == "random_bbox":
-    loader.reset_stack(cam_poses.shape[0])
-    alive, mask, bbox_idxs, t1, t2 = loader.another_bbox(cam_poses, dirs)
+    bvh.reset_stack(cam_poses.shape[0])
+    alive, mask, bbox_idxs, t1, t2 = bvh.another_bbox(cam_poses, dirs)
     t = t1
 
 if mode == "another_bbox":
@@ -71,9 +72,9 @@ if mode == "another_bbox":
     t2 = np.ones((cam_poses.shape[0],)) * 1e9
 
     alive = True
-    loader.reset_stack(cam_poses.shape[0])
+    bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive, cur_mask, cur_bbox_idxs, cur_t1, cur_t2 = loader.another_bbox(cam_poses, dirs)
+        alive, cur_mask, cur_bbox_idxs, cur_t1, cur_t2 = bvh.another_bbox(cam_poses, dirs)
         mask = mask | cur_mask
         update_mask = cur_mask & (cur_t1 < t1)
 

@@ -1,8 +1,21 @@
+build_cpu:
+	g++ \
+	examples/example_cpu.cpp \
+	src/utils.cpp \
+	src/build.cpp \
+	src/cpu_traverse.cpp \
+	-lassimp \
+	-fopenmp \
+	-O3 \
+	-o bvh
+
 build_gpu:
 	nvcc \
-	examples/example.cu \
-	src/bvh.cu \
-	src/utils.cu \
+	examples/example_gpu.cu \
+	src/utils.cpp \
+	src/build.cpp \
+	src/cpu_traverse.cpp \
+	src/gpu_traverse.cu \
 	-lassimp \
 	-O3 \
 	-x cu \

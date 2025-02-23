@@ -1,10 +1,10 @@
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 
-#include "../src/bvh.h"
+#include "../src/gpu_traverse.cuh"
 
 int main() {
-    /* ==== BVH library methods ==== */
+    /* ==== Load and prepare BVH ==== */
 
     cout << "Loading scene..." << endl;
     Mesh mesh("suzanne.fbx");
@@ -19,22 +19,21 @@ int main() {
     cout << "Number of faces: " << mesh.faces.size() << endl;
 
     cout << endl;
-
+    
+    CPUBuilder builder(mesh);
     cout << "Building BVH..." << endl;
-    BVH bvh(mesh);
-    bvh.build_bvh(15);
-    cout << "Depth: " << bvh.depth << endl;
-    cout << "Number of nodes: " << bvh.n_nodes << endl;
-    cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
-    cout << "Number of faces: " << bvh.mesh.faces.size() << endl;
-    bvh.save_as_obj("bvh.obj");
+    BVHData bvh_data = builder.build_bvh(15);
+    cout << "Depth: " << bvh_data.depth << endl;
+    cout << "Number of nodes: " << bvh_data.n_nodes << endl;
+    bvh_data.save_as_obj("bvh.obj");
+    GPUTraverser bvh(bvh_data);
 
     cout << endl;
 
 
     /* ==== Setting up camera ==== */
 
-    auto [min, max] = bvh.mesh.bounds();
+    auto [min, max] = mesh.bounds();
     glm::vec3 center = (max + min) * 0.5f;
     float max_extent = std::fmax(max.x - min.x, std::fmax(max.y - min.y, max.z - min.z));
     glm::vec3 cam_pos = { 
@@ -50,9 +49,8 @@ int main() {
     int n_rays = img_size * img_size;
     int n_pixels = img_size * img_size;
 
-    /* ==== Preparing ray data ==== */
 
-    bvh.cudify();
+    /* ==== Preparing ray data ==== */
 
     thrust::host_vector<glm::vec3> ray_origins(n_rays);
     thrust::host_vector<glm::vec3> ray_vectors(n_rays);
@@ -89,7 +87,7 @@ int main() {
 
     cout << "Rendering image..." << endl;
     timer_start();
-    bvh.closest_primitive_cuda(
+    bvh.closest_primitive(
         ray_origins_d.data().get(),
         ray_vectors_d.data().get(),
         masks_d.data().get(),
@@ -106,6 +104,7 @@ int main() {
 
     /* ==== Saving image ==== */
 
+    cout << "Saving image..." << endl;
     std::vector<unsigned int> pixels(n_pixels);
     for (int i = 0; i < n_pixels; i++) {
         float val = 0;
@@ -114,7 +113,6 @@ int main() {
         }
         pixels[i] = (255 << 24) | ((int)(val * 255) << 16) | ((int)(val * 255) << 8) | (int)(val * 255);
     }
-    cout << "Saving image..." << endl;
     save_to_bmp(pixels.data(), img_size, img_size, "output.bmp");
 
     return 0;

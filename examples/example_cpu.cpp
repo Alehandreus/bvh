@@ -1,37 +1,36 @@
-#include "../src/bvh.h"
+#include "../src/cpu_traverse.h"
 
 int main() {
-    /* ==== BVH library methods ==== */
-    BVH bvh;
+    /* ==== Load and prepare BVH ==== */
 
     cout << "Loading scene..." << endl;
-    bvh.load_scene("suzanne.fbx");
-    cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
-    cout << "Number of faces: " << bvh.mesh.faces.size() << endl;
+    Mesh mesh("suzanne.fbx");
+    cout << "Number of vertices: " << mesh.vertices.size() << endl;
+    cout << "Number of faces: " << mesh.faces.size() << endl;
 
     cout << endl;
 
     cout << "Splitting faces..." << endl;
-    bvh.split_faces(0.9);
-    cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
-    cout << "Number of faces: " << bvh.mesh.faces.size() << endl;
+    mesh.split_faces(0.9);
+    cout << "Number of vertices: " << mesh.vertices.size() << endl;
+    cout << "Number of faces: " << mesh.faces.size() << endl;
 
     cout << endl;
-
+    
+    CPUBuilder builder(mesh);
     cout << "Building BVH..." << endl;
-    bvh.build_bvh(15);
-    cout << "Depth: " << bvh.depth << endl;
-    cout << "Number of nodes: " << bvh.n_nodes << endl;
-    cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
-    cout << "Number of faces: " << bvh.mesh.faces.size() << endl;
-    bvh.save_as_obj("bvh.obj");
+    BVHData bvh_data = builder.build_bvh(15);
+    cout << "Depth: " << bvh_data.depth << endl;
+    cout << "Number of nodes: " << bvh_data.n_nodes << endl;
+    bvh_data.save_as_obj("bvh.obj");
+    CPUTraverser bvh(bvh_data);
 
     cout << endl;
 
 
     /* ==== Setting up camera ==== */
 
-    auto [min, max] = bvh.mesh.bounds();
+    auto [min, max] = mesh.bounds();
     glm::vec3 center = (max + min) * 0.5f;
     float max_extent = std::fmax(max.x - min.x, std::fmax(max.y - min.y, max.z - min.z));
     glm::vec3 cam_pos = { 
@@ -59,7 +58,7 @@ int main() {
             float y_f = ((float)y / img_size - 0.5f) * 2;
 
             glm::vec3 dir = cam_dir + x_dir * x_f + y_dir * y_f;
-            HitResult hit = bvh.closest_primitive({cam_pos, dir});
+            HitResult hit = bvh.closest_primitive_single({cam_pos, dir});
 
             if (hit.hit) {
                 float val = std::sin(hit.t * glm::length(cam_dir) * 2) * 0.3f + 0.5f;

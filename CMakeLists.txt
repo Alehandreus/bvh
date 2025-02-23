@@ -44,28 +44,21 @@ find_package(nanobind CONFIG REQUIRED)
 
 find_package(assimp REQUIRED)
 
-# We are now ready to compile the actual extension module
-nanobind_add_module(
-    # Name of the extension
-    bvh_impl
-
-    # Target the stable ABI for Python 3.12+, which reduces
-    # the number of binary wheels that must be built. This
-    # does nothing on older Python versions
-    STABLE_ABI
-
-    # Source code goes here
-    src/bindings.cu
-    src/bvh.cu
-    src/utils.cu
+set(SOURCES
+    src/utils.cpp
+    src/build.cpp
+    src/cpu_traverse.cpp
+    src/gpu_traverse.cu
+    src/bindings.cpp
 )
+
+nanobind_add_module(bvh_impl STABLE_ABI ${SOURCES})
+
+set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CUDA)
 
 set_target_properties(bvh_impl PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 target_link_libraries(bvh_impl PRIVATE assimp::assimp)
-
-# set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -x cu --relocatable-device-code=true -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored")
-# target_compile_options(bvh_impl PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode arch=compute_75,code=sm_75>)
 
 # Install directive for scikit-build-core
 install(TARGETS bvh_impl LIBRARY DESTINATION bvh)

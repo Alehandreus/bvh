@@ -60,6 +60,31 @@ mode = "closest_primitive"
 if mode == "closest_primitive":
     mask, t = bvh.closest_primitive(d_cam_poses, d_dirs)
 
+if mode == "random_bbox":
+    bvh.reset_stack(cam_poses.shape[0])
+    alive, mask, bbox_idxs, t1, t2 = bvh.another_bbox(d_cam_poses, d_dirs)
+    t = t1
+
+if mode == "another_bbox":
+    mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
+    bbox_idxs = torch.zeros((cam_poses.shape[0],), dtype=torch.long).cuda()
+    t1 = torch.ones((cam_poses.shape[0],), dtype=torch.float32).cuda() * 1e9
+    t2 = torch.ones((cam_poses.shape[0],), dtype=torch.float32).cuda() * 1e9
+
+    alive = True
+    bvh.reset_stack(cam_poses.shape[0])
+    while alive:
+        alive, cur_mask, cur_bbox_idxs, cur_t1, cur_t2 = bvh.another_bbox(d_cam_poses, d_dirs)
+        mask = mask | cur_mask
+        update_mask = cur_mask & (cur_t1 < t1)
+
+        bbox_idxs[update_mask] = cur_bbox_idxs.long()[update_mask]
+        t1[update_mask] = cur_t1[update_mask]
+        t2[update_mask] = cur_t2[update_mask]
+
+    t = t1
+    t[t == 1e9] = 0
+
 
 # ==== Visualize ==== #
 

@@ -1,3 +1,5 @@
+#include <curand_kernel.h>
+
 #include "gpu_traverse.cuh"
 
 CUDA_GLOBAL void closest_primitive_entry(
@@ -6,7 +8,7 @@ CUDA_GLOBAL void closest_primitive_entry(
     const BVHDataPointers dp,
     uint32_t *stack,
     int *stack_sizes,
-    int stack_reserve,
+    int stack_limit,
     bool *masks,
     float *t,
     int n_rays
@@ -18,11 +20,40 @@ CUDA_GLOBAL void closest_primitive_entry(
     }
 
     Ray ray = {ray_origins[i], ray_vectors[i]};
-    StackInfo stack_info = {stack_sizes[i], stack + i * stack_reserve};
+    StackInfo stack_info = {stack_sizes[i], stack + i * stack_limit};
 
     HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::CLOSEST_PRIMITIVE);
     masks[i] = hit.hit;
     t[i] = hit.t;
+}
+
+CUDA_GLOBAL void another_bbox_entry(
+    const glm::vec3 *ray_origins,
+    const glm::vec3 *ray_vectors,
+    const BVHDataPointers dp,
+    uint32_t *stack,
+    int *stack_sizes,
+    int stack_limit,
+    bool *masks,
+    uint32_t *node_idxs,
+    float *t1,
+    float *t2,
+    int n_rays
+) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i >= n_rays) {
+        return;
+    }
+
+    Ray ray = {ray_origins[i], ray_vectors[i]};
+    StackInfo stack_info = {stack_sizes[i], stack + i * stack_limit};
+
+    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX);
+    masks[i] = hit.hit;
+    node_idxs[i] = hit.node_idx;
+    t1[i] = hit.t1;
+    t2[i] = hit.t2;
 }
 
 CUDA_GLOBAL void segments_entry(
@@ -31,7 +62,7 @@ CUDA_GLOBAL void segments_entry(
     const BVHDataPointers dp,
     uint32_t *stack,
     int *stack_sizes,
-    int stack_reserve,
+    int stack_limit,
     bool *segments,
     int n_rays,
     int n_segments
@@ -43,7 +74,7 @@ CUDA_GLOBAL void segments_entry(
     }
 
     Ray ray = {ray_origins[i], ray_vectors[i]};
-    StackInfo stack_info = {stack_sizes[i], stack + i * stack_reserve};
+    StackInfo stack_info = {stack_sizes[i], stack + i * stack_limit};
     bool *cur_segments = segments + i * n_segments;
 
     float eps = 1e-6;

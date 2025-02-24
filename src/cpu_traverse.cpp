@@ -11,6 +11,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
     if (st.stack_size == 1 && st.stack[0] == 0) {
         auto hit = ray_box_intersection(ray, dp.nodes[0].bbox);
         if (!hit.hit) {
+            st.stack_size = 0;
             return hit;
         }
     }

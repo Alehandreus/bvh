@@ -1,4 +1,7 @@
 #include <thrust/device_vector.h>
+#include <thrust/reduce.h>
+#include <thrust/functional.h>
+#include <thrust/execution_policy.h>
 
 #include "cpu_traverse.h"
 
@@ -8,9 +11,23 @@ CUDA_GLOBAL void closest_primitive_entry(
     const BVHDataPointers dp,
     uint32_t *stack,
     int *stack_sizes,
-    int stack_reserve,
+    int stack_limit,
     bool *masks,
     float *t,
+    int n_rays
+);
+
+CUDA_GLOBAL void another_bbox_entry(
+    const glm::vec3 *ray_origins,
+    const glm::vec3 *ray_vectors,
+    const BVHDataPointers dp,
+    uint32_t *stack,
+    int *stack_sizes,
+    int stack_limit,
+    bool *masks,
+    uint32_t *node_idxs,
+    float *t1,
+    float *t2,
     int n_rays
 );
 
@@ -20,7 +37,7 @@ CUDA_GLOBAL void segments_entry(
     const BVHDataPointers dp,
     uint32_t *stack,
     int *stack_sizes,
-    int stack_reserve,
+    int stack_limit,
     bool *segments,
     int n_rays,
     int n_segments
@@ -77,6 +94,37 @@ struct GPUTraverser {
             t,
             n_rays
         );
+    }
+
+    bool another_bbox(
+        const glm::vec3 *ray_origins,
+        const glm::vec3 *ray_vectors,
+        bool *masks,
+        uint32_t *node_idxs,
+        float *t1,
+        float *t2,
+        int n_rays
+    ) {
+        // needs to be wavefront
+
+        another_bbox_entry
+        <<< (n_rays + 31) / 32, 32 >>>
+        (
+            ray_origins,
+            ray_vectors,
+            data_pointers(),
+            stack.data().get(),
+            stack_sizes.data().get(),
+            stack_limit,
+            masks,
+            node_idxs,
+            t1,
+            t2,
+            n_rays
+        );
+
+        bool alive = thrust::reduce(stack_sizes.begin(), stack_sizes.end()) > 0;
+        return alive;
     }
 
     void segments(

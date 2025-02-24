@@ -1,7 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
-#include <omp.h>
+// #include <omp.h>
 
 #include <fstream>
 #include <string>
@@ -177,5 +177,44 @@ struct CPUTraverser {
                 hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX);
             };
         }
+    }
+
+    void generate_camera_rays(
+        glm::vec3 *ray_origins,
+        glm::vec3 *ray_vectors,
+        bool *masks,
+        float *t,
+        int img_size
+    ) {
+        // ==== Set up default Camera ==== //
+
+        auto [min, max] = bvh.nodes[0].bbox;
+        glm::vec3 center = (max + min) * 0.5f;
+        float max_extent = std::fmax(max.x - min.x, std::fmax(max.y - min.y, max.z - min.z));
+        glm::vec3 cam_pos = { 
+            center.x + max_extent * 1.0,
+            center.y - max_extent * 1.5,
+            center.z + max_extent * 0.5
+        };
+        glm::vec3 cam_dir = (center - cam_pos) * 0.9f;
+        glm::vec3 x_dir = glm::normalize(glm::cross(cam_dir, glm::vec3(0, 0, 1))) * (max_extent / 2);
+        glm::vec3 y_dir = -glm::normalize(glm::cross(x_dir, cam_dir)) * (max_extent / 2);
+
+
+        // ==== Generate Camera Rays ==== //
+
+        #pragma omp parallel for
+        for (int y = 0; y < img_size; y++) {
+            for (int x = 0; x < img_size; x++) {
+                float x_f = ((float)x / img_size - 0.5f) * 2;
+                float y_f = ((float)y / img_size - 0.5f) * 2;
+
+                glm::vec3 dir = cam_dir + x_dir * x_f + y_dir * y_f;
+                HitResult hit = closest_primitive_single({cam_pos, dir});
+
+                masks[y * img_size + x] = hit.hit;
+                t[y * img_size + x] = hit.t;
+            }
+        }        
     }
 };

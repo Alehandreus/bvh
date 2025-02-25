@@ -1,7 +1,10 @@
+#pragma once
+
 #include <thrust/device_vector.h>
 #include <thrust/reduce.h>
 #include <thrust/functional.h>
 #include <thrust/execution_policy.h>
+#include <curand_kernel.h>
 
 #include "cpu_traverse.h"
 
@@ -43,6 +46,23 @@ CUDA_GLOBAL void segments_entry(
     int n_segments
 );
 
+CUDA_GLOBAL void bbox_raygen_entry(
+    const BVHDataPointers dp,
+    uint32_t *stack,
+    int *stack_sizes,
+    int stack_limit,
+    curandState *rand_states,
+    uint32_t *leaf_idxs,
+    int n_leaves,
+    glm::vec3 *ray_origins,
+    glm::vec3 *ray_ends,
+    bool *masks,
+    float *t, // value in [0, 1]
+    int n_rays
+);
+
+CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states);
+
 struct GPUTraverser {
     const BVHData &bvh;
 
@@ -54,11 +74,26 @@ struct GPUTraverser {
     thrust::device_vector<int> stack_sizes;
     int stack_limit;
 
+    thrust::device_vector<uint32_t> leaf_idxs;
+    int n_leaves;
+
+    thrust::device_vector<curandState> rand_states;
+    int n_rand_states;
+
     GPUTraverser(const BVHData &bvh) : bvh(bvh), stack_limit(bvh.depth * 2) {
         vertices = bvh.vertices;
         faces = bvh.faces;
         nodes = bvh.nodes;
         prim_idxs = bvh.prim_idxs;
+
+        std::vector<uint32_t> leaf_idxs_cpu;
+        for (int i = 0; i < nodes.size(); i++) {
+            if (bvh.nodes[i].is_leaf()) {
+                leaf_idxs_cpu.push_back(i);
+            }
+        }
+        leaf_idxs = leaf_idxs_cpu;
+        n_leaves = leaf_idxs.size();
     }
 
     void reset_stack(int n_rays) {
@@ -70,6 +105,39 @@ struct GPUTraverser {
 
     BVHDataPointers data_pointers() const {
         return {vertices.data().get(), faces.data().get(), nodes.data().get(), prim_idxs.data().get()};
+    }
+
+    void init_rand_state(int n_states) {
+        this->n_rand_states = n_states;
+        rand_states.resize(n_states);
+        init_rand_state_entry<<<(n_states + 31) / 32, 32>>>(rand_states.data().get(), n_states);
+    }
+
+    void bbox_raygen(
+        glm::vec3 *ray_origins,
+        glm::vec3 *ray_ends,
+        bool *masks,
+        float *t,
+        int n_rays
+    ) {
+        reset_stack(n_rays);
+
+        bbox_raygen_entry
+        <<< (n_rays + 31) / 32, 32 >>>
+        (
+            data_pointers(),
+            stack.data().get(),
+            stack_sizes.data().get(),
+            stack_limit,
+            rand_states.data().get(),
+            leaf_idxs.data().get(),
+            n_leaves,
+            ray_origins,
+            ray_ends,
+            masks,
+            t,
+            n_rays
+        );
     }
 
     void closest_primitive(

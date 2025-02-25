@@ -162,6 +162,44 @@ NB_MODULE(bvh_impl, m) {
     nb::class_<GPUTraverser>(m, "GPUTraverser")
         .def(nb::init<const BVHData&>())
         .def("reset_stack", &GPUTraverser::reset_stack)
+        .def("init_rand_state", &GPUTraverser::init_rand_state)
+        .def("bbox_raygen", [](GPUTraverser& self, int n_rays_) {
+            uint32_t n_rays = n_rays_;
+
+            struct Temp {
+                glm::vec3 *ray_origin_ptr;
+                glm::vec3 *ray_end_ptr;
+                bool *mask_ptr;
+                float *t_ptr;
+                Temp(int n_rays) {
+                    cudaMalloc(&ray_origin_ptr, sizeof(glm::vec3) * n_rays);
+                    cudaMalloc(&ray_end_ptr, sizeof(glm::vec3) * n_rays);
+                    cudaMalloc(&mask_ptr, sizeof(bool) * n_rays);
+                    cudaMalloc(&t_ptr, sizeof(float) * n_rays);
+                }
+                ~Temp() {
+                    cudaFree(ray_origin_ptr);
+                    cudaFree(ray_end_ptr);
+                    cudaFree(mask_ptr);
+                    cudaFree(t_ptr);
+                }
+            };
+
+            Temp *temp = new Temp(n_rays);
+
+            nb::capsule deleter(temp, [](void *p) noexcept {
+                delete (Temp *) p;
+            });
+
+            self.bbox_raygen(temp->ray_origin_ptr, temp->ray_end_ptr, temp->mask_ptr, temp->t_ptr, n_rays);
+
+            auto ray_origin = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->ray_origin_ptr, {n_rays, 3}, deleter);
+            auto ray_end = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->ray_end_ptr, {n_rays, 3}, deleter);
+            auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
+            auto t = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t_ptr, {n_rays}, deleter);
+
+            return nb::make_tuple(ray_origin, ray_end, mask, t);
+        })
         .def("closest_primitive", [](
             GPUTraverser& self,
             nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_origins,

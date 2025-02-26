@@ -31,6 +31,7 @@ CUDA_GLOBAL void another_bbox_entry(
     uint32_t *node_idxs,
     float *t1,
     float *t2,
+    int *alive,
     int n_rays
 );
 
@@ -74,8 +75,8 @@ struct GPUTraverser {
     thrust::device_vector<int> stack_sizes;
     int stack_limit;
 
-    thrust::device_vector<uint32_t> leaf_idxs;
-    int n_leaves;
+    thrust::device_vector<uint32_t> nbvh_leaf_idxs;
+    int n_nbvh_leaves;
 
     thrust::device_vector<curandState> rand_states;
     int n_rand_states;
@@ -85,15 +86,26 @@ struct GPUTraverser {
         faces = bvh.faces;
         nodes = bvh.nodes;
         prim_idxs = bvh.prim_idxs;
+        
+        nbvh_leaf_idxs = { 0 };
+        n_nbvh_leaves = nbvh_leaf_idxs.size();
+    }
 
-        std::vector<uint32_t> leaf_idxs_cpu;
-        for (int i = 0; i < nodes.size(); i++) {
-            if (bvh.nodes[i].is_leaf()) {
-                leaf_idxs_cpu.push_back(i);
+    void grow_nbvh() {
+        std::vector<uint32_t> new_nbvh_leaf_idxs_cpu;
+        for (int i = 0; i < nbvh_leaf_idxs.size(); i++) {
+            uint32_t leaf_idx = nbvh_leaf_idxs[i];
+            BVHNode leaf = nodes[leaf_idx];
+            if (leaf.is_leaf()) {
+                new_nbvh_leaf_idxs_cpu.push_back(leaf_idx);
+            } else {
+                new_nbvh_leaf_idxs_cpu.push_back(leaf.left());
+                new_nbvh_leaf_idxs_cpu.push_back(leaf.right());
             }
         }
-        leaf_idxs = leaf_idxs_cpu;
-        n_leaves = leaf_idxs.size();
+
+        nbvh_leaf_idxs = new_nbvh_leaf_idxs_cpu;
+        n_nbvh_leaves = nbvh_leaf_idxs.size();
     }
 
     void reset_stack(int n_rays) {
@@ -130,8 +142,8 @@ struct GPUTraverser {
             stack_sizes.data().get(),
             stack_limit,
             rand_states.data().get(),
-            leaf_idxs.data().get(),
-            n_leaves,
+            nbvh_leaf_idxs.data().get(),
+            n_nbvh_leaves,
             ray_origins,
             ray_ends,
             masks,
@@ -175,6 +187,10 @@ struct GPUTraverser {
     ) {
         // needs to be wavefront
 
+        int *d_alive;
+        cudaMalloc(&d_alive, sizeof(int));
+        cudaMemset(d_alive, 0, sizeof(int));
+        
         another_bbox_entry
         <<< (n_rays + 31) / 32, 32 >>>
         (
@@ -188,10 +204,15 @@ struct GPUTraverser {
             node_idxs,
             t1,
             t2,
+            d_alive,
             n_rays
         );
 
-        bool alive = thrust::reduce(stack_sizes.begin(), stack_sizes.end()) > 0;
+        int alive;
+        cudaMemcpy(&alive, d_alive, sizeof(int), cudaMemcpyDeviceToHost);
+        
+        cudaFree(d_alive);
+
         return alive;
     }
 

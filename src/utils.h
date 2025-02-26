@@ -62,6 +62,8 @@ struct BBox {
 
     CUDA_HOST_DEVICE BBox() : min(FLT_MAX), max(-FLT_MAX) {}
 
+    CUDA_HOST_DEVICE BBox(const glm::vec3 &min, const glm::vec3 &max) : min(min), max(max) {}
+
     CUDA_HOST_DEVICE void update(const glm::vec3 &point) {
         min = glm::min(min, point);
         max = glm::max(max, point);
@@ -80,6 +82,10 @@ struct BBox {
 
 struct HitResult {
     bool hit;
+    // float t;
+    // float t1;
+    // float t2;
+    // uint32_t node_idx;
     union {
         float t;
         struct {

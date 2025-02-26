@@ -57,7 +57,9 @@ NB_MODULE(bvh_impl, m) {
         .def_ro("depth", &BVHData::depth)
         .def_ro("n_nodes", &BVHData::n_nodes)
         .def_ro("n_leaves", &BVHData::n_leaves)
-        .def("save_as_obj", &BVHData::save_as_obj)
+        .def("save_as_obj", [](BVHData& self, const char *filename) {
+            self.save_as_obj(filename);
+        })
         .def("nodes_memory_bytes", &BVHData::nodes_memory_bytes)
     ;
 
@@ -163,6 +165,7 @@ NB_MODULE(bvh_impl, m) {
         .def(nb::init<const BVHData&>())
         .def("reset_stack", &GPUTraverser::reset_stack)
         .def("init_rand_state", &GPUTraverser::init_rand_state)
+        .def("grow_nbvh", &GPUTraverser::grow_nbvh)
         .def("bbox_raygen", [](GPUTraverser& self, int n_rays_) {
             uint32_t n_rays = n_rays_;
 

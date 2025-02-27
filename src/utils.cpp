@@ -1,16 +1,11 @@
-#include "utils.h"
-
 #include <fstream>
-#include <iostream>
-
-using std::cin, std::cout, std::endl;
-
 #include <iostream>
 #include <vector>
 #include <chrono>
 
 #include <glm/glm.hpp>
 
+#include "utils.h"
 #include "cuda_compat.h"
 
 using std::cout, std::endl;

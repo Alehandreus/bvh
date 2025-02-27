@@ -8,14 +8,6 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
     StackInfo &st,
     TraverseMode mode
 ) {
-    // if (st.stack_size == 1 && st.stack[0] == 0) {
-    //     auto hit = ray_box_intersection(ray, dp.nodes[0].bbox);
-    //     if (!hit.hit) {
-    //         st.stack_size = 0;
-    //         return hit;
-    //     }
-    // }
-
     HitResult closest_hit = {false, FLT_MAX, 0};
 
     while (st.stack_size > 0) {

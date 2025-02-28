@@ -95,12 +95,10 @@ image = np.zeros((img_size, img_size, 3))
 img = t.reshape(img_size, img_size)
 img[~mask_img] = np.min(img[mask_img])
 img = (img - np.min(img)) / (np.max(img) - np.min(img))
-img = img * (0.9 - 0.3) + 0.3
-img[~mask_img] = 1
-img[0, 0] = 0 # I am deeply sorry for this
+img = 1 - img
+img[~mask_img] = 0
 
 plt.axis('off')
-
 plt.imshow(img, cmap='gray')
 plt.tight_layout()
-plt.savefig('output.png')
+plt.savefig('output.png', bbox_inches='tight', pad_inches=0)

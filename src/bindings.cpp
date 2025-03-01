@@ -178,17 +178,20 @@ NB_MODULE(bvh_impl, m) {
             struct Temp {
                 glm::vec3 *ray_origin_ptr;
                 glm::vec3 *ray_end_ptr;
+                uint32_t *bbox_idxs_ptr;
                 bool *mask_ptr;
                 float *t_ptr;
                 Temp(int n_rays) {
                     cudaMalloc(&ray_origin_ptr, sizeof(glm::vec3) * n_rays);
                     cudaMalloc(&ray_end_ptr, sizeof(glm::vec3) * n_rays);
+                    cudaMalloc(&bbox_idxs_ptr, sizeof(uint32_t) * n_rays);
                     cudaMalloc(&mask_ptr, sizeof(bool) * n_rays);
                     cudaMalloc(&t_ptr, sizeof(float) * n_rays);
                 }
                 ~Temp() {
                     cudaFree(ray_origin_ptr);
                     cudaFree(ray_end_ptr);
+                    cudaFree(bbox_idxs_ptr);
                     cudaFree(mask_ptr);
                     cudaFree(t_ptr);
                 }
@@ -200,14 +203,15 @@ NB_MODULE(bvh_impl, m) {
                 delete (Temp *) p;
             });
 
-            self.bbox_raygen(temp->ray_origin_ptr, temp->ray_end_ptr, temp->mask_ptr, temp->t_ptr, n_rays);
+            self.bbox_raygen(temp->ray_origin_ptr, temp->ray_end_ptr, temp->bbox_idxs_ptr, temp->mask_ptr, temp->t_ptr, n_rays);
 
             auto ray_origin = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->ray_origin_ptr, {n_rays, 3}, deleter);
             auto ray_end = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->ray_end_ptr, {n_rays, 3}, deleter);
+            auto bbox_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->bbox_idxs_ptr, {n_rays}, deleter);
             auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
             auto t = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t_ptr, {n_rays}, deleter);
 
-            return nb::make_tuple(ray_origin, ray_end, mask, t);
+            return nb::make_tuple(ray_origin, ray_end, bbox_idxs, mask, t);
         })
         .def("closest_primitive", [](
             GPUTraverser& self,

@@ -127,6 +127,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     int n_leaves,
     glm::vec3 *ray_origins,
     glm::vec3 *ray_ends,
+    uint32_t *bbox_idxs,
     bool *masks,
     float *t, // value in [0, 1]
     int n_rays
@@ -217,6 +218,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     if (!bbox_hit.hit) {
         ray_origins[i] = p1 * 0.f;
         ray_ends[i] = p1 * 0.f;
+        bbox_idxs[i] = 0;
         masks[i] = false;
         t[i] = 0;
         return;
@@ -239,6 +241,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
 
     ray_origins[i] = ray_origin;// * 0.f + (float) hit.hit;
     ray_ends[i] = ray_end;// * 0.f + (float) hit.hit;
+    bbox_idxs[i] = leaf_idx;
     masks[i] = hit.hit;
     t[i] = hit.t;
 

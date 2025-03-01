@@ -58,6 +58,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     int n_leaves,
     glm::vec3 *ray_origins,
     glm::vec3 *ray_ends,
+    uint32_t *bbox_idxs,
     bool *masks,
     float *t, // value in [0, 1]
     int n_rays
@@ -160,6 +161,7 @@ struct GPUTraverser {
     void bbox_raygen(
         glm::vec3 *ray_origins,
         glm::vec3 *ray_ends,
+        uint32_t *bbox_idxs,
         bool *masks,
         float *t,
         int n_rays
@@ -178,6 +180,7 @@ struct GPUTraverser {
             n_nbvh_leaves,
             ray_origins,
             ray_ends,
+            bbox_idxs,
             masks,
             t,
             n_rays

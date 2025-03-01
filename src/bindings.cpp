@@ -165,7 +165,13 @@ NB_MODULE(bvh_impl, m) {
         .def(nb::init<const BVHData&>())
         .def("reset_stack", &GPUTraverser::reset_stack)
         .def("init_rand_state", &GPUTraverser::init_rand_state)
-        .def("grow_nbvh", &GPUTraverser::grow_nbvh)
+        // .def("grow_nbvh", &GPUTraverser::grow_nbvh)
+        .def("grow_nbvh", [](GPUTraverser& self, int steps) {
+            self.grow_nbvh(steps);
+        })
+        .def("grow_nbvh", [](GPUTraverser& self) {
+            self.grow_nbvh();
+        })
         .def("bbox_raygen", [](GPUTraverser& self, int n_rays_) {
             uint32_t n_rays = n_rays_;
 
@@ -242,7 +248,32 @@ NB_MODULE(bvh_impl, m) {
                 delete (HitResultCuda *) p;
             });
 
-            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->node_idxs_ptr, temp->t1_ptr, temp->t2_ptr, n_rays);            
+            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->node_idxs_ptr, temp->t1_ptr, temp->t2_ptr, n_rays, TreeType::BVH);        
+
+            auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
+            auto node_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->node_idxs_ptr, {n_rays}, deleter);
+            auto t1 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t1_ptr, {n_rays}, deleter);
+            auto t2 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t2_ptr, {n_rays}, deleter);
+
+            return nb::make_tuple(alive, mask, node_idxs, t1, t2);
+        })
+        .def("another_bbox_nbvh", [](
+            GPUTraverser& self,
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_origins,
+            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_vectors
+        ) {
+            uint32_t n_rays = ray_origins.shape(0);
+
+            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
+            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
+
+            HitResultCuda *temp = new HitResultCuda(n_rays);
+
+            nb::capsule deleter(temp, [](void *p) noexcept {
+                delete (HitResultCuda *) p;
+            });
+
+            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->node_idxs_ptr, temp->t1_ptr, temp->t2_ptr, n_rays, TreeType::NBVH);        
 
             auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
             auto node_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->node_idxs_ptr, {n_rays}, deleter);

@@ -9,10 +9,17 @@
 struct BVHNode {
     BBox bbox;
     uint32_t left_first_prim;
-    uint32_t n_prims;
+    // uint32_t n_prims;
+    uint32_t n_prims : 31;
+    uint32_t is_nbvh_leaf_ : 1;
+    
 
     CUDA_HOST_DEVICE inline bool is_leaf() const {
         return n_prims > 0;
+    }
+
+    CUDA_HOST_DEVICE inline bool is_nbvh_leaf() const {
+        return is_leaf() || is_nbvh_leaf_;
     }
 
     CUDA_HOST_DEVICE inline uint32_t left() const {

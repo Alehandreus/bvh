@@ -32,7 +32,8 @@ CUDA_GLOBAL void another_bbox_entry(
     float *t1,
     float *t2,
     int *alive,
-    int n_rays
+    int n_rays,
+    TreeType tree_type
 );
 
 CUDA_GLOBAL void segments_entry(
@@ -86,9 +87,19 @@ struct GPUTraverser {
         faces = bvh.faces;
         nodes = bvh.nodes;
         prim_idxs = bvh.prim_idxs;
+
+        BVHNode root = nodes[0];
+        root.is_nbvh_leaf_ = 1;
+        nodes[0] = root;
         
         nbvh_leaf_idxs = { 0 };
         n_nbvh_leaves = nbvh_leaf_idxs.size();
+    }
+
+    void grow_nbvh(int steps) {
+        for (int i = 0; i < steps; i++) {
+            grow_nbvh();
+        }
     }
 
     void grow_nbvh() {
@@ -99,13 +110,34 @@ struct GPUTraverser {
             if (leaf.is_leaf()) {
                 new_nbvh_leaf_idxs_cpu.push_back(leaf_idx);
             } else {
+                leaf.is_nbvh_leaf_ = 0;
+                nodes[leaf_idx] = leaf;
+
+                BVHNode left = nodes[leaf.left()];
+                left.is_nbvh_leaf_ = 1;
+                nodes[leaf.left()] = left;
+
+                BVHNode right = nodes[leaf.right()];
+                right.is_nbvh_leaf_ = 1;
+                nodes[leaf.right()] = right;
+
                 new_nbvh_leaf_idxs_cpu.push_back(leaf.left());
                 new_nbvh_leaf_idxs_cpu.push_back(leaf.right());
             }
         }
 
+        // for (auto i : nbvh_leaf_idxs) {
+        //     std::cout << i << " ";
+        // }
+        // std::cout << std::endl;
+
         nbvh_leaf_idxs = new_nbvh_leaf_idxs_cpu;
         n_nbvh_leaves = nbvh_leaf_idxs.size();
+
+        // for (auto i : nbvh_leaf_idxs) {
+        //     std::cout << i << " ";
+        // }
+        // std::cout << std::endl;
     }
 
     void reset_stack(int n_rays) {
@@ -183,7 +215,8 @@ struct GPUTraverser {
         uint32_t *node_idxs,
         float *t1,
         float *t2,
-        int n_rays
+        int n_rays,
+        TreeType tree_type
     ) {
         // needs to be wavefront
 
@@ -205,7 +238,8 @@ struct GPUTraverser {
             t1,
             t2,
             d_alive,
-            n_rays
+            n_rays,
+            tree_type
         );
 
         int alive;

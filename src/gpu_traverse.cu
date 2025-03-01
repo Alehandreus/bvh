@@ -30,7 +30,7 @@ CUDA_GLOBAL void closest_primitive_entry(
     Ray ray = {ray_origins[i], ray_vectors[i]};
     StackInfo stack_info = {stack_sizes[i], stack + i * stack_limit};
 
-    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::CLOSEST_PRIMITIVE);
+    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
     masks[i] = hit.hit;
     t[i] = hit.t;
 }
@@ -47,7 +47,8 @@ CUDA_GLOBAL void another_bbox_entry(
     float *t1,
     float *t2,
     int *alive,
-    int n_rays
+    int n_rays,
+    TreeType tree_type
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -58,7 +59,7 @@ CUDA_GLOBAL void another_bbox_entry(
     Ray ray = {ray_origins[i], ray_vectors[i]};
     StackInfo stack_info = {stack_sizes[i], stack + i * stack_limit};
 
-    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX);
+    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX, tree_type);
     masks[i] = hit.hit;
     node_idxs[i] = hit.node_idx;
     t1[i] = hit.t1;
@@ -91,7 +92,7 @@ CUDA_GLOBAL void segments_entry(
 
     float eps = 1e-6;
 
-    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX);
+    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX, TreeType::BVH);
     while (hit.hit) {                
         float t1 = hit.t1;
         float t2 = hit.t2;
@@ -112,7 +113,7 @@ CUDA_GLOBAL void segments_entry(
             cur_segments[j] = true;
         }
 
-        hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX);
+        hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX, TreeType::BVH);
     };    
 }
 
@@ -141,7 +142,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     curandState *state = &rand_states[i];
 
     uint32_t leaf_idx = leaf_idxs[curand(state) % n_leaves];
-    const BVHNode &leaf = dp.nodes[0];
+    const BVHNode &leaf = dp.nodes[leaf_idx];
 
 
     // ==== Generate ray start and end ==== //
@@ -149,11 +150,42 @@ CUDA_GLOBAL void bbox_raygen_entry(
     glm::vec3 min = leaf.bbox.min;
     glm::vec3 max = leaf.bbox.max;
     glm::vec3 extent = max - min;
+    glm::vec3 center = (max + min) * 0.5f;
+    // float sphere_radius = glm::length(extent) / 2;
+    // float sphere_radius = glm::max(extent.x, glm::max(extent.y, extent.z)) / 2;
 
     // inflate bbox
     // min = min - 0.1f * extent;
     // max = max + 0.1f * extent;
     // extent = max - min;
+
+    // glm::vec3 p1 = glm::normalize(glm::vec3(
+    //     curand_uniform(state) - 0.5f,
+    //     curand_uniform(state) - 0.5f, 
+    //     curand_uniform(state) - 0.5f
+    // )) * sphere_radius + center;
+
+    // glm::vec3 p2 = glm::normalize(glm::vec3(
+    //     curand_uniform(state) - 0.5f,
+    //     curand_uniform(state) - 0.5f, 
+    //     curand_uniform(state) - 0.5f
+    // )) * sphere_radius + center;
+
+    // glm::vec3 p2p1 = glm::normalize(p2 - p1);
+
+    // glm::vec3 ray_origin = p1;
+    // glm::vec3 ray_end = p2;
+    // glm::vec3 ray_vector = p2p1;
+
+    // StackInfo st = {stack_sizes[i], stack + i * stack_limit};
+    // HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, dp, st, TraverseMode::CLOSEST_PRIMITIVE);
+
+    // ray_origins[i] = ray_origin;
+    // ray_ends[i] = ray_end;
+    // masks[i] = hit.hit;
+    // t[i] = hit.t;
+
+    // return;
 
     glm::vec3 p1 = glm::vec3(
         curand_uniform(state),
@@ -181,8 +213,12 @@ CUDA_GLOBAL void bbox_raygen_entry(
 
     // glm::vec3 p2p1 = glm::normalize(p2 - p1);
 
-    HitResult bbox_hit = ray_box_intersection(Ray{p1, p2p1}, {min, max});
+    HitResult bbox_hit = ray_box_intersection(Ray{p1, p2p1}, leaf.bbox);
     if (!bbox_hit.hit) {
+        ray_origins[i] = p1 * 0.f;
+        ray_ends[i] = p1 * 0.f;
+        masks[i] = false;
+        t[i] = 0;
         return;
     }
     
@@ -193,25 +229,18 @@ CUDA_GLOBAL void bbox_raygen_entry(
 
     // ==== Intersect the primitives ==== //
 
-    const BVHDataPointers dp2 = {
-        dp.vertices,
-        dp.faces,
-        dp.nodes + leaf_idx,
-        dp.prim_idxs
-    };
-
     StackInfo st = {stack_sizes[i], stack + i * stack_limit};
 
-    // (stack + i * stack_limit)[0] = leaf_idx;
+    (stack + i * stack_limit)[0] = leaf_idx;
 
-    HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, dp, st, TraverseMode::CLOSEST_PRIMITIVE);
+    HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, dp, st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
 
-    float t_norm = hit.t;// / glm::length(ray_end - ray_origin); // fit t value in [0, 1]
+    // float t_norm = hit.t;// / glm::length(ray_end - ray_origin); // fit t value in [0, 1]
 
-    ray_origins[i] = ray_origin;
-    ray_ends[i] = ray_end;
+    ray_origins[i] = ray_origin;// * 0.f + (float) hit.hit;
+    ray_ends[i] = ray_end;// * 0.f + (float) hit.hit;
     masks[i] = hit.hit;
-    t[i] = t_norm;
+    t[i] = hit.t;
 
     // curandState *state = &rand_states[i];
     // StackInfo st = {stack_sizes[i], stack + i * stack_limit};

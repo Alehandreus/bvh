@@ -152,41 +152,6 @@ CUDA_GLOBAL void bbox_raygen_entry(
     glm::vec3 max = leaf.bbox.max;
     glm::vec3 extent = max - min;
     glm::vec3 center = (max + min) * 0.5f;
-    // float sphere_radius = glm::length(extent) / 2;
-    // float sphere_radius = glm::max(extent.x, glm::max(extent.y, extent.z)) / 2;
-
-    // inflate bbox
-    // min = min - 0.1f * extent;
-    // max = max + 0.1f * extent;
-    // extent = max - min;
-
-    // glm::vec3 p1 = glm::normalize(glm::vec3(
-    //     curand_uniform(state) - 0.5f,
-    //     curand_uniform(state) - 0.5f, 
-    //     curand_uniform(state) - 0.5f
-    // )) * sphere_radius + center;
-
-    // glm::vec3 p2 = glm::normalize(glm::vec3(
-    //     curand_uniform(state) - 0.5f,
-    //     curand_uniform(state) - 0.5f, 
-    //     curand_uniform(state) - 0.5f
-    // )) * sphere_radius + center;
-
-    // glm::vec3 p2p1 = glm::normalize(p2 - p1);
-
-    // glm::vec3 ray_origin = p1;
-    // glm::vec3 ray_end = p2;
-    // glm::vec3 ray_vector = p2p1;
-
-    // StackInfo st = {stack_sizes[i], stack + i * stack_limit};
-    // HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, dp, st, TraverseMode::CLOSEST_PRIMITIVE);
-
-    // ray_origins[i] = ray_origin;
-    // ray_ends[i] = ray_end;
-    // masks[i] = hit.hit;
-    // t[i] = hit.t;
-
-    // return;
 
     glm::vec3 p1 = glm::vec3(
         curand_uniform(state),
@@ -194,25 +159,11 @@ CUDA_GLOBAL void bbox_raygen_entry(
         curand_uniform(state)
     ) * extent + min;
 
-    // float a1 = 0.1 + curand_uniform(state) * 0.1 + 0.8 * (curand_uniform(state) > 0.5);
-    // float a2 = 0.1 + curand_uniform(state) * 0.1 + 0.8 * (curand_uniform(state) > 0.5);
-    // float a3 = 0.1 + curand_uniform(state) * 0.1 + 0.8 * (curand_uniform(state) > 0.5);
-
-    // glm::vec3 p1 = glm::vec3(a1, a2, a3) * extent + min;
-
     glm::vec3 p2p1 = glm::normalize(glm::vec3(
         curand_uniform(state) - 0.5f,
         curand_uniform(state) - 0.5f, 
         curand_uniform(state) - 0.5f
     ));
-
-    // glm::vec3 p2 = glm::vec3(
-    //     curand_uniform(state),
-    //     curand_uniform(state), 
-    //     curand_uniform(state)
-    // ) * extent + min;
-
-    // glm::vec3 p2p1 = glm::normalize(p2 - p1);
 
     HitResult bbox_hit = ray_box_intersection(Ray{p1, p2p1}, leaf.bbox);
     if (!bbox_hit.hit) {
@@ -237,58 +188,9 @@ CUDA_GLOBAL void bbox_raygen_entry(
 
     HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, dp, st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
 
-    // float t_norm = hit.t;// / glm::length(ray_end - ray_origin); // fit t value in [0, 1]
-
-    ray_origins[i] = ray_origin;// * 0.f + (float) hit.hit;
-    ray_ends[i] = ray_end;// * 0.f + (float) hit.hit;
+    ray_origins[i] = ray_origin;
+    ray_ends[i] = ray_end;
     bbox_idxs[i] = leaf_idx;
     masks[i] = hit.hit;
     t[i] = hit.t;
-
-    // curandState *state = &rand_states[i];
-    // StackInfo st = {stack_sizes[i], stack + i * stack_limit};
-
-    // const BVHNode &root = dp.nodes[0];
-
-    // glm::vec3 min = root.bbox.min;
-    // glm::vec3 max = root.bbox.max;
-    // glm::vec3 extent = max - min;
-
-    // // inflate bbox
-    // min = min - 0.5f * extent;
-    // max = max + 0.5f * extent;
-    // extent = max - min;
-
-    // glm::vec3 p1, p2p1;
-    // HitResult hit = {false, 0};
-
-    // do {
-    //     p1 = glm::vec3(
-    //         curand_uniform(state),
-    //         curand_uniform(state), 
-    //         curand_uniform(state)
-    //     ) * extent + min;
-
-    //     p2p1 = glm::normalize(glm::vec3(
-    //         curand_uniform(state) - 0.5f,
-    //         curand_uniform(state) - 0.5f, 
-    //         curand_uniform(state) - 0.5f
-    //     ));
-
-    //     stack_sizes[i] = 1;
-    //     (stack + i * stack_limit)[0] = 0;
-    //     hit = bvh_traverse(Ray{p1, p2p1}, dp, st, TraverseMode::CLOSEST_BBOX);
-    // } while (!hit.hit);
-
-    // glm::vec3 ray_origin = p1 + hit.t1 * p2p1;
-    // glm::vec3 ray_end = p1 + hit.t2 * p2p1;
-
-    // stack_sizes[i] = 1;
-    // (stack + i * stack_limit)[0] = 0;
-    // HitResult prim_hit = bvh_traverse(Ray{ray_origin, p2p1}, dp, st, TraverseMode::CLOSEST_PRIMITIVE);
-
-    // ray_origins[i] = ray_origin;
-    // ray_ends[i] = ray_end;
-    // masks[i] = prim_hit.hit;
-    // t[i] = prim_hit.t;
 }

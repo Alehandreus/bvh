@@ -25,6 +25,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
             /* ==== intersect only node bbox ==== */
             if (mode == TraverseMode::ANOTHER_BBOX) {
                 HitResult bbox_hit = ray_box_intersection(ray, node.bbox);
+                bbox_hit.node_idx = node_idx;
                 if (bbox_hit.hit) {
                     return bbox_hit;
                 }

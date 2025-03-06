@@ -74,7 +74,7 @@ if mode == "another_bbox":
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive, cur_mask, cur_bbox_idxs, cur_t1, cur_t2 = bvh.another_bbox(d_cam_poses, d_dirs)
+        alive, cur_mask, cur_bbox_idxs, nn_idxs, cur_t1, cur_t2 = bvh.another_bbox(d_cam_poses, d_dirs)
         mask = mask | cur_mask
         update_mask = cur_mask & (cur_t1 < t1)
 
@@ -98,7 +98,7 @@ if mode == "nbvh":
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive, cur_mask, cur_bbox_idxs, cur_t1, cur_t2 = bvh.another_bbox_nbvh(d_cam_poses, d_dirs)
+        alive, cur_mask, cur_bbox_idxs, nn_idxs, cur_t1, cur_t2 = bvh.another_bbox_nbvh(d_cam_poses, d_dirs)
         mask = mask | cur_mask
         update_mask = cur_mask & (cur_t1 < t1)
 

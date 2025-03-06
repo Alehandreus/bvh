@@ -44,6 +44,7 @@ CUDA_GLOBAL void another_bbox_entry(
     int stack_limit,
     bool *masks,
     uint32_t *node_idxs,
+    uint32_t *nn_idxs,
     float *t1,
     float *t2,
     int *alive,
@@ -61,11 +62,17 @@ CUDA_GLOBAL void another_bbox_entry(
 
     HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX, tree_type);
     masks[i] = hit.hit;
-    node_idxs[i] = hit.node_idx;
     t1[i] = hit.t1;
     t2[i] = hit.t2;
+    if (hit.hit) {
+        node_idxs[i] = hit.node_idx;
+        nn_idxs[i] = dp.nodes[hit.node_idx].nn;
+    } else {
+        node_idxs[i] = 7;
+        nn_idxs[i] = 7;
+    }
 
-    // I as sorry
+    // I am sorry
     atomicOr(alive, hit.hit);
 }
 
@@ -128,6 +135,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     glm::vec3 *ray_origins,
     glm::vec3 *ray_ends,
     uint32_t *bbox_idxs,
+    uint32_t *nn_idxs,
     bool *masks,
     float *t, // value in [0, 1]
     int n_rays
@@ -191,6 +199,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     ray_origins[i] = ray_origin;
     ray_ends[i] = ray_end;
     bbox_idxs[i] = leaf_idx;
+    nn_idxs[i] = leaf.nn;
     masks[i] = hit.hit;
     t[i] = hit.t;
 }

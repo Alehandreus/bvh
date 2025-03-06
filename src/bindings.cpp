@@ -15,27 +15,36 @@ using Vector3f = nb::ndarray<float, nb::numpy, nb::shape<3>>;
 #ifdef CUDA_ENABLED
 struct HitResultCuda {
     bool *mask_ptr;
-    union {
-        float *t_ptr;
-        struct {
-            float *t1_ptr;
-            float *t2_ptr;
-            uint32_t *node_idxs_ptr;
-        };
-    };
+    float *t_ptr;
+    float *t1_ptr;
+    float *t2_ptr;
+    uint32_t *node_idxs_ptr;
+    uint32_t *nn_idxs_ptr;
+    // union {
+    //     float *t_ptr;
+    //     struct {
+    //         float *t1_ptr;
+    //         float *t2_ptr;
+    //         uint32_t *node_idxs_ptr;
+    //     };
+    // };
 
     HitResultCuda(uint32_t n_rays) {
         cudaMalloc(&mask_ptr, n_rays * sizeof(bool));
+        cudaMalloc(&t_ptr, n_rays * sizeof(float));
         cudaMalloc(&t1_ptr, n_rays * sizeof(float));
         cudaMalloc(&t2_ptr, n_rays * sizeof(float));
         cudaMalloc(&node_idxs_ptr, n_rays * sizeof(uint32_t));
+        cudaMalloc(&nn_idxs_ptr, n_rays * sizeof(uint32_t));
     }
 
     ~HitResultCuda() {
         cudaFree(mask_ptr);
+        cudaFree(t_ptr);
         cudaFree(t1_ptr);
         cudaFree(t2_ptr);
         cudaFree(node_idxs_ptr);
+        cudaFree(nn_idxs_ptr);
     }
 };
 #endif
@@ -172,6 +181,7 @@ NB_MODULE(bvh_impl, m) {
         .def("grow_nbvh", [](GPUTraverser& self) {
             self.grow_nbvh();
         })
+        .def("assign_nns", &GPUTraverser::assign_nns)
         .def("bbox_raygen", [](GPUTraverser& self, int n_rays_) {
             uint32_t n_rays = n_rays_;
 
@@ -179,12 +189,14 @@ NB_MODULE(bvh_impl, m) {
                 glm::vec3 *ray_origin_ptr;
                 glm::vec3 *ray_end_ptr;
                 uint32_t *bbox_idxs_ptr;
+                uint32_t *nn_idxs_ptr;
                 bool *mask_ptr;
                 float *t_ptr;
                 Temp(int n_rays) {
                     cudaMalloc(&ray_origin_ptr, sizeof(glm::vec3) * n_rays);
                     cudaMalloc(&ray_end_ptr, sizeof(glm::vec3) * n_rays);
                     cudaMalloc(&bbox_idxs_ptr, sizeof(uint32_t) * n_rays);
+                    cudaMalloc(&nn_idxs_ptr, sizeof(uint32_t) * n_rays);
                     cudaMalloc(&mask_ptr, sizeof(bool) * n_rays);
                     cudaMalloc(&t_ptr, sizeof(float) * n_rays);
                 }
@@ -192,6 +204,7 @@ NB_MODULE(bvh_impl, m) {
                     cudaFree(ray_origin_ptr);
                     cudaFree(ray_end_ptr);
                     cudaFree(bbox_idxs_ptr);
+                    cudaFree(nn_idxs_ptr);
                     cudaFree(mask_ptr);
                     cudaFree(t_ptr);
                 }
@@ -203,15 +216,16 @@ NB_MODULE(bvh_impl, m) {
                 delete (Temp *) p;
             });
 
-            self.bbox_raygen(temp->ray_origin_ptr, temp->ray_end_ptr, temp->bbox_idxs_ptr, temp->mask_ptr, temp->t_ptr, n_rays);
+            self.bbox_raygen(temp->ray_origin_ptr, temp->ray_end_ptr, temp->bbox_idxs_ptr, temp->nn_idxs_ptr, temp->mask_ptr, temp->t_ptr, n_rays);
 
             auto ray_origin = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->ray_origin_ptr, {n_rays, 3}, deleter);
             auto ray_end = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->ray_end_ptr, {n_rays, 3}, deleter);
             auto bbox_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->bbox_idxs_ptr, {n_rays}, deleter);
+            auto nn_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->nn_idxs_ptr, {n_rays}, deleter);
             auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
             auto t = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t_ptr, {n_rays}, deleter);
 
-            return nb::make_tuple(ray_origin, ray_end, bbox_idxs, mask, t);
+            return nb::make_tuple(ray_origin, ray_end, bbox_idxs, nn_idxs, mask, t);
         })
         .def("closest_primitive", [](
             GPUTraverser& self,
@@ -252,14 +266,15 @@ NB_MODULE(bvh_impl, m) {
                 delete (HitResultCuda *) p;
             });
 
-            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->node_idxs_ptr, temp->t1_ptr, temp->t2_ptr, n_rays, TreeType::BVH);        
+            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->node_idxs_ptr, temp->nn_idxs_ptr, temp->t1_ptr, temp->t2_ptr, n_rays, TreeType::BVH);        
 
             auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
             auto node_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->node_idxs_ptr, {n_rays}, deleter);
+            auto nn_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->nn_idxs_ptr, {n_rays}, deleter);
             auto t1 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t1_ptr, {n_rays}, deleter);
             auto t2 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t2_ptr, {n_rays}, deleter);
 
-            return nb::make_tuple(alive, mask, node_idxs, t1, t2);
+            return nb::make_tuple(alive, mask, node_idxs, nn_idxs, t1, t2);
         })
         .def("another_bbox_nbvh", [](
             GPUTraverser& self,
@@ -277,14 +292,15 @@ NB_MODULE(bvh_impl, m) {
                 delete (HitResultCuda *) p;
             });
 
-            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->node_idxs_ptr, temp->t1_ptr, temp->t2_ptr, n_rays, TreeType::NBVH);        
+            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->node_idxs_ptr, temp->nn_idxs_ptr, temp->t1_ptr, temp->t2_ptr, n_rays, TreeType::NBVH);        
 
             auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
             auto node_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->node_idxs_ptr, {n_rays}, deleter);
+            auto nn_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->nn_idxs_ptr, {n_rays}, deleter);
             auto t1 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t1_ptr, {n_rays}, deleter);
             auto t2 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t2_ptr, {n_rays}, deleter);
 
-            return nb::make_tuple(alive, mask, node_idxs, t1, t2);
+            return nb::make_tuple(alive, mask, node_idxs, nn_idxs, t1, t2);
         })
         .def("segments", [](
             GPUTraverser& self,

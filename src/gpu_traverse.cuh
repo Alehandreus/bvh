@@ -29,6 +29,7 @@ CUDA_GLOBAL void another_bbox_entry(
     int stack_limit,
     bool *masks,
     uint32_t *node_idxs,
+    uint32_t *nn_idxs,
     float *t1,
     float *t2,
     int *alive,
@@ -59,10 +60,11 @@ CUDA_GLOBAL void bbox_raygen_entry(
     glm::vec3 *ray_origins,
     glm::vec3 *ray_ends,
     uint32_t *bbox_idxs,
+    uint32_t *nn_idxs,
     bool *masks,
     float *t, // value in [0, 1]
     int n_rays
-);
+) ;
 
 CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states);
 
@@ -93,13 +95,36 @@ struct GPUTraverser {
         root.is_nbvh_leaf_ = 1;
         nodes[0] = root;
         
-        nbvh_leaf_idxs = { 0 };
+        // nbvh_leaf_idxs = { 0 };
+        std::vector<uint32_t> a = { 0 };
+        nbvh_leaf_idxs = a;
         n_nbvh_leaves = nbvh_leaf_idxs.size();
     }
 
     void grow_nbvh(int steps) {
         for (int i = 0; i < steps; i++) {
             grow_nbvh();
+        }
+    }
+
+    void assign_nns(int node_idx_, int nn, int depth) {
+        uint32_t node_idx = node_idx_;
+        BVHNode node = nodes[node_idx];
+        node.nn = nn;
+        nodes[node_idx] = node;
+
+        // cout << node_idx << " " << nn << " " << depth << endl;
+
+        if (node.is_leaf()) {
+            return;
+        }
+
+        if (depth <= 0) {
+            assign_nns(node.left(), nn, depth);
+            assign_nns(node.right(), nn, depth);
+        } else {
+            assign_nns(node.left(), nn * 2, depth - 1);
+            assign_nns(node.right(), nn * 2 + 1, depth - 1);
         }
     }
 
@@ -162,6 +187,7 @@ struct GPUTraverser {
         glm::vec3 *ray_origins,
         glm::vec3 *ray_ends,
         uint32_t *bbox_idxs,
+        uint32_t *nn_idxs,
         bool *masks,
         float *t,
         int n_rays
@@ -181,6 +207,7 @@ struct GPUTraverser {
             ray_origins,
             ray_ends,
             bbox_idxs,
+            nn_idxs,
             masks,
             t,
             n_rays
@@ -216,6 +243,7 @@ struct GPUTraverser {
         const glm::vec3 *ray_vectors,
         bool *masks,
         uint32_t *node_idxs,
+        uint32_t *nn_idxs,
         float *t1,
         float *t2,
         int n_rays,
@@ -238,6 +266,7 @@ struct GPUTraverser {
             stack_limit,
             masks,
             node_idxs,
+            nn_idxs,
             t1,
             t2,
             d_alive,

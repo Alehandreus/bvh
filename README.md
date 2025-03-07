@@ -5,13 +5,14 @@ C++ / CUDA implementation of BVH Tree for [neural-intersection](https://github.c
 * Large primitive splitting as preprocessing step
 * CUDA traversal
 * NumPy / PyTorch bindings
+* NBVH features: neural subtree, ray generation for training
 
 ## Requirements
 * **assimp**, **glm**, **openmp**
     * `sudo pacman -S assimp glm openmp`
     * `sudo apt install libassimp-dev libglm-dev` (probably)
 * **CUDA**
-    * `sudo pacman -S cuda` (probably)
+    * `sudo pacman -S cuda`
 * `pip install -r requirements.txt`
 
 ## Installation

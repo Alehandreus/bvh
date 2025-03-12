@@ -67,9 +67,6 @@ CUDA_GLOBAL void another_bbox_entry(
     if (hit.hit) {
         node_idxs[i] = hit.node_idx;
         nn_idxs[i] = dp.nodes[hit.node_idx].nn;
-    } else {
-        node_idxs[i] = 7;
-        nn_idxs[i] = 7;
     }
 
     // I am sorry

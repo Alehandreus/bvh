@@ -70,6 +70,20 @@ NB_MODULE(bvh_impl, m) {
             self.save_as_obj(filename);
         })
         .def("nodes_memory_bytes", &BVHData::nodes_memory_bytes)
+        .def("nodes_data", [](BVHData& self) {
+            glm::vec3 *min = new glm::vec3[self.nodes.size()];
+            glm::vec3 *max = new glm::vec3[self.nodes.size()];
+
+            for (int i = 0; i < self.nodes.size(); i++) {
+                min[i] = self.nodes[i].bbox.min;
+                max[i] = self.nodes[i].bbox.max;
+            }
+
+            auto min_arr = nb::ndarray<float, nb::numpy>(min, {self.nodes.size(), 3});
+            auto max_arr = nb::ndarray<float, nb::numpy>(max, {self.nodes.size(), 3});
+
+            return nb::make_tuple(min_arr, max_arr);
+        })
     ;
 
     nb::class_<CPUBuilder>(m, "CPUBuilder")

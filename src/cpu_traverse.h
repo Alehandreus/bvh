@@ -145,46 +145,6 @@ struct CPUTraverser {
         return alive;
     }
 
-    // experiment for Transformer Model at github.com/Alehandreus/neural-intersection
-    void segments(
-        const glm::vec3 *ray_origins,
-        const glm::vec3 *ray_vectors, // ray_origins and ray_origins + ray_vectors are segment edges
-        bool *segments,
-        int n_rays,
-        int n_segments
-    ) {
-        reset_stack(n_rays);
-        std::fill(segments, segments + n_rays * n_segments, false);
-        float eps = 1e-6;
-
-        #pragma omp parallel for
-        for (int i = 0; i < n_rays; i++) {
-            bool *cur_segments = segments + i * n_segments;
-
-            Ray ray = {ray_origins[i], ray_vectors[i]};
-            StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_limit};
-
-            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX, TreeType::BVH);
-            while (hit.hit) {                
-                float t1 = hit.t1;
-                float t2 = hit.t2;
-
-                t1 = std::max(t1, -eps);
-                t2 = std::max(t2, -eps);
-
-                uint32_t segment1 = (uint32_t) ((t1 - eps) * n_segments);
-                uint32_t segment2 = (uint32_t) ((t2 + eps) * n_segments) + 1;
-
-                segment1 = std::clamp(segment1, 0u, (uint32_t) n_segments - 1);
-                segment2 = std::clamp(segment2, 1u, (uint32_t) n_segments);
-
-                std::fill(cur_segments + segment1, cur_segments + segment2, true);
-
-                hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX, TreeType::BVH);
-            };
-        }
-    }
-
     void generate_camera_rays(
         glm::vec3 *ray_origins,
         glm::vec3 *ray_vectors,

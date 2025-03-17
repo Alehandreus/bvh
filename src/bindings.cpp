@@ -162,25 +162,6 @@ NB_MODULE(bvh_impl, m) {
 
             return nb::make_tuple(alive, mask, node_idxs, t1, t2);
         })
-        .def("segments", [](
-            CPUTraverser& self,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_vectors,
-            int n_segments
-        ) {
-            uint32_t n_rays = ray_origins.shape(0);
-
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
-
-            bool *segments_ptr = new bool[n_rays * n_segments];
-
-            self.segments(ray_origins_ptr, ray_vectors_ptr, segments_ptr, n_rays, n_segments);
-
-            auto segments = nb::ndarray<bool, nb::numpy>(segments_ptr, {n_rays, (uint32_t) n_segments});
-
-            return segments;
-        })
     ;
 
     #ifdef CUDA_ENABLED
@@ -315,43 +296,6 @@ NB_MODULE(bvh_impl, m) {
             auto t2 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t2_ptr, {n_rays}, deleter);
 
             return nb::make_tuple(alive, mask, node_idxs, nn_idxs, t1, t2);
-        })
-        .def("segments", [](
-            GPUTraverser& self,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_origins,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_vectors,
-            int n_segments
-        ) {
-            uint32_t n_rays = ray_origins.shape(0);
-
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
-
-            struct Temp {
-                bool *segments_ptr;
-                Temp(uint32_t n_rays, uint32_t n_segments) {
-                    cudaError_t err = cudaMalloc(&segments_ptr, n_rays * n_segments * sizeof(bool));
-                    if (err != cudaSuccess) {
-                        cout << cudaGetErrorString(err) << endl;
-                        throw std::runtime_error("cudaMalloc failed");
-                    }
-                }
-                ~Temp() {
-                    cudaFree(segments_ptr);
-                }
-            };
-
-            Temp *temp = new Temp(n_rays, n_segments);
-
-            nb::capsule deleter(temp, [](void *p) noexcept {
-                delete (Temp *) p;
-            });
-
-            self.segments(ray_origins_ptr, ray_vectors_ptr, temp->segments_ptr, n_rays, n_segments);
-
-            auto segments = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->segments_ptr, {n_rays, (uint32_t) n_segments}, deleter);
-
-            return segments;
         })
     ;
     #endif

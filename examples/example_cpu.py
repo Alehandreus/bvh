@@ -51,38 +51,37 @@ dirs = cam_dir[None, :] + x_dir[None, :] * x_coords[:, None] + y_dir[None, :] * 
 
 # ==== Run BVH ==== #
 
+bbox_idxs = np.zeros((cam_poses.shape[0], 64), dtype=np.uint32)
+mask = np.zeros((cam_poses.shape[0],), dtype=np.bool_)
+t = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
+t2 = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
+
 mode = "closest_primitive"
 
 if mode == "closest_primitive":
-    mask, t = bvh.closest_primitive(cam_poses, dirs)
+    bvh.closest_primitive(cam_poses, dirs, bbox_idxs, mask, t)
 
 if mode == "closest_bbox":
-    mask, bbox_idxs, t1, t2 = bvh.closest_bbox(cam_poses, dirs)
-    t = t1
+    bvh.closest_bbox(cam_poses, dirs, bbox_idxs, mask, t, t2)
 
 if mode == "random_bbox":
-    bvh.reset_stack(cam_poses.shape[0])
-    alive, mask, bbox_idxs, t1, t2 = bvh.another_bbox(cam_poses, dirs)
-    t = t1
+    bvh.reset_stack(cam_poses.shape[0])  
+    alive = bvh.another_bbox(cam_poses, dirs, bbox_idxs, mask, t, t2)
 
 if mode == "another_bbox":
-    mask = np.array([False] * cam_poses.shape[0])
-    bbox_idxs = np.zeros((cam_poses.shape[0],), dtype=np.uint32)
-    t1 = np.ones((cam_poses.shape[0],)) * 1e9
-    t2 = np.ones((cam_poses.shape[0],)) * 1e9
+    total_mask = np.zeros((cam_poses.shape[0],), dtype=np.bool_)
+    total_t = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
 
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive, cur_mask, cur_bbox_idxs, cur_t1, cur_t2 = bvh.another_bbox(cam_poses, dirs)
-        mask = mask | cur_mask
-        update_mask = cur_mask & (cur_t1 < t1)
+        alive = bvh.another_bbox(cam_poses, dirs, bbox_idxs, mask, t, t2)
 
-        bbox_idxs[update_mask] = cur_bbox_idxs[update_mask]
-        t1[update_mask] = cur_t1[update_mask]
-        t2[update_mask] = cur_t2[update_mask]
+        total_mask = total_mask | mask
+        total_t[mask & (t < total_t)] = t[mask & (t < total_t)]
 
-    t = t1
+    mask = total_mask
+    t = total_t
     t[t == 1e9] = 0
 
 

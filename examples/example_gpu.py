@@ -55,34 +55,34 @@ d_dirs = torch.from_numpy(dirs).cuda()
 
 # ==== Run BVH ==== #
 
+bbox_idxs = torch.zeros((cam_poses.shape[0], 64), dtype=torch.uint32).cuda()
+mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
+t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
+t2 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
+
 mode = "nbvh"
 
 if mode == "closest_primitive":
-    mask, t = bvh.closest_primitive(d_cam_poses, d_dirs)
+    bvh.closest_primitive(d_cam_poses, d_dirs, bbox_idxs, mask, t)
 
 if mode == "random_bbox":
     bvh.reset_stack(cam_poses.shape[0])
-    alive, mask, bbox_idxs, t1, t2 = bvh.another_bbox(d_cam_poses, d_dirs)
-    t = t1
+    alive = bvh.another_bbox(d_cam_poses, d_dirs, bbox_idxs, mask, t, t2, False)
 
 if mode == "another_bbox":
-    mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
-    bbox_idxs = torch.zeros((cam_poses.shape[0],), dtype=torch.long).cuda()
-    t1 = torch.ones((cam_poses.shape[0],), dtype=torch.float32).cuda() * 1e9
-    t2 = torch.ones((cam_poses.shape[0],), dtype=torch.float32).cuda() * 1e9
+    total_mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
+    total_t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
 
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive, cur_mask, cur_bbox_idxs, nn_idxs, cur_t1, cur_t2 = bvh.another_bbox(d_cam_poses, d_dirs)
-        mask = mask | cur_mask
-        update_mask = cur_mask & (cur_t1 < t1)
+        alive = bvh.another_bbox(d_cam_poses, d_dirs, bbox_idxs, mask, t, t2, False)
 
-        bbox_idxs[update_mask] = cur_bbox_idxs.long()[update_mask]
-        t1[update_mask] = cur_t1[update_mask]
-        t2[update_mask] = cur_t2[update_mask]
-
-    t = t1
+        total_mask = total_mask | mask
+        total_t[mask & (t < total_t)] = t[mask & (t < total_t)]
+    
+    mask = total_mask
+    t = total_t
     t[t == 1e9] = 0
 
 if mode == "nbvh":
@@ -90,23 +90,19 @@ if mode == "nbvh":
     bvh.grow_nbvh()
     bvh.grow_nbvh()
 
-    mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
-    bbox_idxs = torch.zeros((cam_poses.shape[0],), dtype=torch.long).cuda()
-    t1 = torch.ones((cam_poses.shape[0],), dtype=torch.float32).cuda() * 1e9
-    t2 = torch.ones((cam_poses.shape[0],), dtype=torch.float32).cuda() * 1e9
+    total_mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
+    total_t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
 
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive, cur_mask, cur_bbox_idxs, nn_idxs, cur_t1, cur_t2 = bvh.another_bbox_nbvh(d_cam_poses, d_dirs)
-        mask = mask | cur_mask
-        update_mask = cur_mask & (cur_t1 < t1)
+        alive = bvh.another_bbox(d_cam_poses, d_dirs, bbox_idxs, mask, t, t2, True)
 
-        bbox_idxs[update_mask] = cur_bbox_idxs.long()[update_mask]
-        t1[update_mask] = cur_t1[update_mask]
-        t2[update_mask] = cur_t2[update_mask]
+        total_mask = total_mask | mask
+        total_t[mask & (t < total_t)] = t[mask & (t < total_t)]
 
-    t = t1
+    mask = total_mask
+    t = total_t
     t[t == 1e9] = 0
 
 

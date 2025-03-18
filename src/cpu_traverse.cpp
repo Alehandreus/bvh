@@ -11,8 +11,8 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 ) {
     HitResult closest_hit = {false, FLT_MAX, 0};
 
-    while (st.stack_size > 0) {
-        uint32_t node_idx = st.stack[--st.stack_size];
+    while (st.cur_stack_size > 0) {
+        uint32_t node_idx = st.stack[--st.cur_stack_size];
 
         bool is_leaf = dp.nodes[node_idx].is_leaf(); 
         if (nbvh_only) {
@@ -69,11 +69,11 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
             HitResult right_hit = ray_box_intersection(ray, dp.nodes[right].bbox);
 
             if (left_hit.hit) {
-                st.stack[st.stack_size++] = left;
+                st.stack[st.cur_stack_size++] = left;
             }
 
             if (right_hit.hit) {
-                st.stack[st.stack_size++] = right;
+                st.stack[st.cur_stack_size++] = right;
             }
         }
     }

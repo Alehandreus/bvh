@@ -11,95 +11,70 @@ CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states) {
 }
 
 CUDA_GLOBAL void closest_primitive_entry(
-    const glm::vec3 *ray_origins,
-    const glm::vec3 *ray_vectors,
-    const BVHDataPointers dp,
-    uint32_t *stack,
-    int *stack_sizes,
-    int stack_limit,
-    bool *masks,
-    float *t,
+    const Rays i_rays,
+    const BVHDataPointers i_dp,
+    StackInfos io_stack_infos,
+    PrimOut o_out,
     int n_rays
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-
     if (i >= n_rays) {
         return;
     }
 
-    Ray ray = {ray_origins[i], ray_vectors[i]};
-    StackInfo stack_info = {stack_sizes[i], stack + i * stack_limit};
+    Ray ray = i_rays[i];
+    StackInfo stack_info = io_stack_infos[i];
 
-    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
-    masks[i] = hit.hit;
-    t[i] = hit.t;
+    HitResult hit = bvh_traverse(ray, i_dp, stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
+    o_out.fill(i, hit);
 }
 
 CUDA_GLOBAL void another_bbox_entry(
-    const glm::vec3 *ray_origins,
-    const glm::vec3 *ray_vectors,
-    const BVHDataPointers dp,
-    uint32_t *stack,
-    int *stack_sizes,
-    int stack_limit,
-    bool *masks,
-    uint32_t *node_idxs,
-    float *t1,
-    float *t2,
-    int *alive,
+    const Rays i_rays,
+    const BVHDataPointers i_dp,
+    StackInfos io_stack_infos,
+    BboxOut o_out,
+    int *o_alive,
     int n_rays,
     bool nbvh_only
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-
     if (i >= n_rays) {
         return;
     }
 
-    Ray ray = {ray_origins[i], ray_vectors[i]};
-    StackInfo stack_info = {stack_sizes[i], stack + i * stack_limit};
+    Ray ray = i_rays[i];
+    StackInfo stack_info = io_stack_infos[i];
 
-    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX, nbvh_only);
-    masks[i] = hit.hit;
-    t1[i] = hit.t1;
-    t2[i] = hit.t2;
-    if (hit.hit) {
-        node_idxs[i] = hit.node_idx;
-    } else {
-        node_idxs[i] = 0;
-    }
+    HitResult hit = bvh_traverse(ray, i_dp, stack_info, TraverseMode::ANOTHER_BBOX, nbvh_only);
+    o_out.fill(i, hit);
 
     // I am sorry
-    atomicOr(alive, hit.hit);
+    atomicOr(o_alive, hit.hit);
 }
 
 CUDA_GLOBAL void bbox_raygen_entry(
-    const BVHDataPointers dp,
-    uint32_t *stack,
-    int *stack_sizes,
-    int stack_limit,
-    curandState *rand_states,
-    uint32_t *leaf_idxs,
+    const BVHDataPointers i_dp,
+    StackInfos io_stack_infos,
+    curandState *io_rand_states,
+    uint32_t *i_leaf_idxs,
     int n_leaves,
-    glm::vec3 *ray_origins,
-    glm::vec3 *ray_ends,
-    uint32_t *bbox_idxs,
-    bool *masks,
-    float *t, // value in [0, 1]
+    Rays o_rays,
+    PrimOut o_out,
     int n_rays
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-
     if (i >= n_rays) {
         return;
     }
 
+
     // ==== Generate random leaf index ==== //
 
-    curandState *state = &rand_states[i];
+    curandState *state = &io_rand_states[i];
 
-    uint32_t leaf_idx = leaf_idxs[curand(state) % n_leaves];
-    const BVHNode &leaf = dp.nodes[leaf_idx];
+    uint32_t leaf_idx = i_leaf_idxs[curand(state) % n_leaves];
+    const BVHNode &leaf = i_dp.nodes[leaf_idx];
 
 
     // ==== Generate ray start and end ==== //
@@ -123,11 +98,8 @@ CUDA_GLOBAL void bbox_raygen_entry(
 
     HitResult bbox_hit = ray_box_intersection(Ray{p1, p2p1}, leaf.bbox);
     if (!bbox_hit.hit) {
-        ray_origins[i] = p1 * 0.f;
-        ray_ends[i] = p1 * 0.f;
-        bbox_idxs[i] = 0;
-        masks[i] = false;
-        t[i] = 0;
+        o_rays[i] = Ray{p1 * 0.f, p1 * 0.f};
+        o_out.fill(i, bbox_hit);
         return;
     }
     
@@ -138,15 +110,8 @@ CUDA_GLOBAL void bbox_raygen_entry(
 
     // ==== Intersect the primitives ==== //
 
-    StackInfo st = {stack_sizes[i], stack + i * stack_limit};
-
-    (stack + i * stack_limit)[0] = leaf_idx;
-
-    HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, dp, st, TraverseMode::CLOSEST_PRIMITIVE, false);
-
-    ray_origins[i] = ray_origin;
-    ray_ends[i] = ray_end;
-    bbox_idxs[i] = leaf_idx;
-    masks[i] = hit.hit;
-    t[i] = hit.t;
+    StackInfo st = io_stack_infos[i];
+    HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, i_dp, st, TraverseMode::CLOSEST_PRIMITIVE, false);
+    o_out.fill(i, hit);
+    o_rays[i] = Ray{ray_origin, ray_end};
 }

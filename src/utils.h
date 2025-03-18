@@ -114,6 +114,46 @@ CUDA_HOST_DEVICE HitResult ray_box_intersection(
     const BBox &bbox
 );
 
+struct Rays {
+    glm::vec3 *origs;
+    glm::vec3 *vecs;
+
+    CUDA_HOST_DEVICE Ray operator[](int i) const {
+        return {origs[i], vecs[i]};
+    }
+};
+
+struct CRays {
+    const glm::vec3 *origs;
+    const glm::vec3 *vecs;
+
+    CUDA_HOST_DEVICE Ray operator[](int i) const {
+        return {origs[i], vecs[i]};
+    }
+};
+
+struct BboxOut {
+    bool *masks;
+    float *t1;
+    float *t2;
+
+    CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
+        masks[i] = hit.hit;
+        t1[i] = hit.t1;
+        t2[i] = hit.t2;
+    }
+};
+
+struct PrimOut {
+    bool *masks;
+    float *t;
+
+    CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
+        masks[i] = hit.hit;
+        t[i] = hit.t;
+    }
+};
+
 int timer(bool start);
 void timer_start();
 int timer_stop();

@@ -8,63 +8,36 @@
 
 #include "cpu_traverse.h"
 
+CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states);
+
 CUDA_GLOBAL void closest_primitive_entry(
-    const glm::vec3 *ray_origins,
-    const glm::vec3 *ray_vectors,
-    const BVHDataPointers dp,
-    uint32_t *stack,
-    int *stack_sizes,
-    int stack_limit,
-    bool *masks,
-    float *t,
+    const Rays i_rays,
+    const BVHDataPointers i_dp,
+    StackInfos io_stack_infos,
+    PrimOut o_out,
     int n_rays
 );
 
 CUDA_GLOBAL void another_bbox_entry(
-    const glm::vec3 *ray_origins,
-    const glm::vec3 *ray_vectors,
-    const BVHDataPointers dp,
-    uint32_t *stack,
-    int *stack_sizes,
-    int stack_limit,
-    bool *masks,
-    uint32_t *node_idxs,
-    float *t1,
-    float *t2,
-    int *alive,
+    const Rays i_rays,
+    const BVHDataPointers i_dp,
+    StackInfos io_stack_infos,
+    BboxOut o_out,
+    int *o_alive,
     int n_rays,
     bool nbvh_only
 );
 
-CUDA_GLOBAL void segments_entry(
-    const glm::vec3 *ray_origins,
-    const glm::vec3 *ray_vectors, // ray_origins and ray_origins + ray_vectors are segment edges
-    const BVHDataPointers dp,
-    uint32_t *stack,
-    int *stack_sizes,
-    int stack_limit,
-    bool *segments,
-    int n_rays,
-    int n_segments
-);
-
 CUDA_GLOBAL void bbox_raygen_entry(
-    const BVHDataPointers dp,
-    uint32_t *stack,
-    int *stack_sizes,
-    int stack_limit,
-    curandState *rand_states,
-    uint32_t *leaf_idxs,
+    const BVHDataPointers i_dp,
+    StackInfos io_stack_infos,
+    curandState *io_rand_states,
+    uint32_t *i_leaf_idxs,
     int n_leaves,
-    glm::vec3 *ray_origins,
-    glm::vec3 *ray_ends,
-    uint32_t *bbox_idxs,
-    bool *masks,
-    float *t, // value in [0, 1]
+    Rays o_rays,
+    PrimOut o_out,
     int n_rays
-) ;
-
-CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states);
+);
 
 struct GPUTraverser {
     const BVHData &bvh;
@@ -73,8 +46,11 @@ struct GPUTraverser {
     thrust::device_vector<Face> faces;
     thrust::device_vector<BVHNode> nodes;
     thrust::device_vector<uint32_t> prim_idxs;
+
     thrust::device_vector<uint32_t> stack;
-    thrust::device_vector<int> stack_sizes;
+    thrust::device_vector<int> cur_stack_sizes;
+    thrust::device_vector<uint32_t> bbox_idxs;
+    thrust::device_vector<int> cur_depths;
     int stack_limit;
 
     thrust::device_vector<uint32_t> nbvh_leaf_idxs;
@@ -129,28 +105,37 @@ struct GPUTraverser {
             }
         }
 
-        // for (auto i : nbvh_leaf_idxs) {
-        //     std::cout << i << " ";
-        // }
-        // std::cout << std::endl;
-
         nbvh_leaf_idxs = new_nbvh_leaf_idxs_cpu;
         n_nbvh_leaves = nbvh_leaf_idxs.size();
-
-        // for (auto i : nbvh_leaf_idxs) {
-        //     std::cout << i << " ";
-        // }
-        // std::cout << std::endl;
     }
 
     void reset_stack(int n_rays) {
         stack.resize(n_rays * stack_limit);
         thrust::fill(stack.begin(), stack.end(), 0);
-        stack_sizes.resize(n_rays, 1);
-        thrust::fill(stack_sizes.begin(), stack_sizes.end(), 1);
+
+        cur_stack_sizes.resize(n_rays, 1);
+        thrust::fill(cur_stack_sizes.begin(), cur_stack_sizes.end(), 1);
+
+        bbox_idxs.resize(n_rays * stack_limit);
+        thrust::fill(bbox_idxs.begin(), bbox_idxs.end(), 0);
+        
+        cur_depths.resize(n_rays, 0);
+        thrust::fill(cur_depths.begin(), cur_depths.end(), 0);
     }
 
-    BVHDataPointers data_pointers() const {
+    StackInfos get_stack_infos() {
+        return {
+            stack_limit,
+            cur_stack_sizes.data().get(),
+            stack.data().get(), 
+            
+            stack_limit,
+            cur_depths.data().get(),
+            bbox_idxs.data().get()
+        };
+    }
+
+    BVHDataPointers get_data_pointers() const {
         return {vertices.data().get(), faces.data().get(), nodes.data().get(), prim_idxs.data().get()};
     }
 
@@ -161,65 +146,59 @@ struct GPUTraverser {
     }
 
     void bbox_raygen(
-        glm::vec3 *ray_origins,
-        glm::vec3 *ray_ends,
-        uint32_t *bbox_idxs,
-        bool *masks,
-        float *t,
+        glm::vec3 *o_ray_origs,
+        glm::vec3 *o_ray_ends,
+        uint32_t *o_bbox_idxs,
+        bool *o_masks,
+        float *o_t,
         int n_rays
     ) {
         reset_stack(n_rays);
 
-        bbox_raygen_entry
-        <<< (n_rays + 31) / 32, 32 >>>
-        (
-            data_pointers(),
-            stack.data().get(),
-            stack_sizes.data().get(),
-            stack_limit,
+        Rays rays = {o_ray_origs, o_ray_ends};
+        PrimOut prim_out = {o_masks, o_t};
+
+        bbox_raygen_entry<<<(n_rays + 31) / 32, 32>>>(
+            get_data_pointers(),
+            get_stack_infos(),
             rand_states.data().get(),
             nbvh_leaf_idxs.data().get(),
             n_nbvh_leaves,
-            ray_origins,
-            ray_ends,
-            bbox_idxs,
-            masks,
-            t,
+            rays,
+            prim_out,
             n_rays
         );
     }
 
     void closest_primitive(
-        const glm::vec3 *ray_origins,
-        const glm::vec3 *ray_vectors,
-        bool *masks,
-        float *t,
+        glm::vec3 *i_ray_origs,
+        glm::vec3 *i_ray_vecs,
+        uint32_t *o_bbox_idxs,
+        bool *o_masks,
+        float *o_t,
         int n_rays
     ) {
         reset_stack(n_rays);
 
-        closest_primitive_entry
-        <<< (n_rays + 31) / 32, 32 >>>
-        (
-            ray_origins,
-            ray_vectors,
-            data_pointers(),
-            stack.data().get(),
-            stack_sizes.data().get(),
-            stack_limit,
-            masks,
-            t,
+        Rays rays = {i_ray_origs, i_ray_vecs};
+        PrimOut prim_out = {o_masks, o_t};
+
+        closest_primitive_entry<<<(n_rays + 31) / 32, 32>>>(
+            rays,
+            get_data_pointers(),
+            get_stack_infos(),
+            prim_out,
             n_rays
         );
     }
 
     bool another_bbox(
-        const glm::vec3 *ray_origins,
-        const glm::vec3 *ray_vectors,
-        bool *masks,
-        uint32_t *node_idxs,
-        float *t1,
-        float *t2,
+        glm::vec3 *i_ray_origs,
+        glm::vec3 *i_ray_vecs,
+        uint32_t *o_bbox_idxs,
+        bool *o_masks,
+        float *o_t1,
+        float *o_t2,
         int n_rays,
         bool nbvh_only
     ) {
@@ -228,20 +207,15 @@ struct GPUTraverser {
         int *d_alive;
         cudaMalloc(&d_alive, sizeof(int));
         cudaMemset(d_alive, 0, sizeof(int));
-        
-        another_bbox_entry
-        <<< (n_rays + 31) / 32, 32 >>>
-        (
-            ray_origins,
-            ray_vectors,
-            data_pointers(),
-            stack.data().get(),
-            stack_sizes.data().get(),
-            stack_limit,
-            masks,
-            node_idxs,
-            t1,
-            t2,
+
+        Rays rays = {i_ray_origs, i_ray_vecs};
+        BboxOut bbox_out = {o_masks, o_t1, o_t2};
+
+        another_bbox_entry<<<(n_rays + 31) / 32, 32>>>(
+            rays,
+            get_data_pointers(),
+            get_stack_infos(),
+            bbox_out,
             d_alive,
             n_rays,
             nbvh_only
@@ -253,31 +227,5 @@ struct GPUTraverser {
         cudaFree(d_alive);
 
         return alive;
-    }
-
-    void segments(
-        const glm::vec3 *ray_origins,
-        const glm::vec3 *ray_vectors,
-        bool *segments,
-        int n_rays,
-        int n_segments
-    ) {
-        reset_stack(n_rays);
-        
-        cudaMemset(segments, 0, n_rays * n_segments * sizeof(bool));
-
-        segments_entry
-        <<< (n_rays + 31) / 32, 32 >>>
-        (
-            ray_origins,
-            ray_vectors,
-            data_pointers(),
-            stack.data().get(),
-            stack_sizes.data().get(),
-            stack_limit,
-            segments,
-            n_rays,
-            n_segments
-        );
     }
 };

@@ -20,8 +20,30 @@ struct BVHDataPointers {
 };
 
 struct StackInfo {
-    int &stack_size;
+    int &cur_stack_size;
     uint32_t *stack;
+
+    int &cur_depth;
+    uint32_t *bbox_idxs;
+};
+
+struct StackInfos {
+    int stack_limit;
+    int *cur_stack_sizes;
+    uint32_t *stacks;
+
+    int depth_limit;
+    int *cur_depths;
+    uint32_t *bbox_idxs;
+
+    CUDA_HOST_DEVICE StackInfo operator[](int i) {
+        return {
+            cur_stack_sizes[i],
+            stacks + i * stack_limit,
+            cur_depths[i],
+            bbox_idxs + i * depth_limit
+        };
+    }
 };
 
 enum class TraverseMode {
@@ -42,7 +64,9 @@ struct CPUTraverser {
     const BVHData &bvh;
 
     std::vector<uint32_t> stack;
-    std::vector<int> stack_sizes;
+    std::vector<int> cur_stack_sizes;
+    std::vector<uint32_t> bbox_idxs;
+    std::vector<int> cur_depths;
     int stack_limit;
 
     CPUTraverser(const BVHData &bvh) : bvh(bvh), stack_limit(bvh.depth * 2) {}
@@ -50,89 +74,123 @@ struct CPUTraverser {
     void reset_stack(int n_rays) {
         stack.resize(n_rays * stack_limit);
         std::fill(stack.begin(), stack.end(), 0);
-        stack_sizes.resize(n_rays, 1);
-        std::fill(stack_sizes.begin(), stack_sizes.end(), 1);
+
+        cur_stack_sizes.resize(n_rays, 1);
+        std::fill(cur_stack_sizes.begin(), cur_stack_sizes.end(), 1);
+
+        bbox_idxs.resize(n_rays * bvh.depth);
+        std::fill(bbox_idxs.begin(), bbox_idxs.end(), 0);
+
+        cur_depths.resize(n_rays, 0);
+        std::fill(cur_depths.begin(), cur_depths.end(), 0);
     }
 
-    BVHDataPointers data_pointers() const {
+    BVHDataPointers get_data_pointers() const {
         return {bvh.vertices.data(), bvh.faces.data(), bvh.nodes.data(), bvh.prim_idxs.data()};
+    }
+
+    StackInfos get_stack_infos() {
+        return {
+            stack_limit, 
+            cur_stack_sizes.data(), 
+            stack.data(), 
+
+            stack_limit,
+            cur_depths.data(),
+            bbox_idxs.data()
+        };
     }
 
     // traverse single ray, use local stack to be thread-safe
     HitResult closest_primitive_single(const Ray &ray) const {
         std::vector<uint32_t> smol_stack(stack_limit, 0);
         int smol_stack_size = 1;
-        StackInfo stack_info = {smol_stack_size, smol_stack.data()};
 
-        return bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
+        std::vector<uint32_t> smol_bbox_idxs(bvh.depth, 0);
+        int smol_depth = 0;
+
+        StackInfo stack_info = {smol_stack_size, smol_stack.data(), smol_depth, smol_bbox_idxs.data()};
+
+        return bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
     }
 
-    // this and others are intended for python use, so structures like Ray and HitResult are not exposed
     void closest_primitive(
-        const glm::vec3 *ray_origins,
-        const glm::vec3 *ray_vectors,
-        bool *masks,
-        float *t,
+        glm::vec3 *i_ray_origs,
+        glm::vec3 *i_ray_vecs,
+        uint32_t *o_node_idxs,
+        bool *o_masks,
+        float *o_t,
         int n_rays
     ) {
         reset_stack(n_rays);
 
+        Rays rays = {i_ray_origs, i_ray_vecs};
+        StackInfos stack_infos = get_stack_infos();
+
         #pragma omp parallel for
         for (int i = 0; i < n_rays; i++) {
-            Ray ray = {ray_origins[i], ray_vectors[i]};
-            StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_limit};
+            Ray ray = rays[i];
+            StackInfo stack_info = stack_infos[i];
 
-            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
-            masks[i] = hit.hit;
-            t[i] = hit.t;
+            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
+            o_masks[i] = hit.hit;
+            o_t[i] = hit.t;
         }
     }
 
     void closest_bbox(
-        const glm::vec3 *ray_origins,
-        const glm::vec3 *ray_vectors,
-        bool *masks,
-        uint32_t *node_idxs,
-        float *t1,
-        float *t2,
+        glm::vec3 *i_ray_origs,
+        glm::vec3 *i_ray_vecs,
+        uint32_t *o_node_idxs,
+        bool *o_masks,
+        float *o_t1,
+        float *o_t2,
         int n_rays
     ) {
         reset_stack(n_rays);
 
+        Rays rays = {i_ray_origs, i_ray_vecs};
+        StackInfos stack_infos = get_stack_infos();
+
         #pragma omp parallel for
         for (int i = 0; i < n_rays; i++) {
-            Ray ray = {ray_origins[i], ray_vectors[i]};
-            StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_limit};
+            Ray ray = rays[i];
+            StackInfo stack_info = stack_infos[i];
 
-            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_BBOX, false);
-            masks[i] = hit.hit;
-            node_idxs[i] = hit.node_idx;
-            t1[i] = hit.t1;
-            t2[i] = hit.t2;
+            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::CLOSEST_BBOX, false);
+            o_masks[i] = hit.hit;
+            o_node_idxs[i] = hit.node_idx;
+            o_t1[i] = hit.t1;
+            o_t2[i] = hit.t2;
         }
     }
 
     bool another_bbox(
-        const glm::vec3 *ray_origins,
-        const glm::vec3 *ray_vectors,
-        bool *masks,
-        uint32_t *node_idxs,
-        float *t1,
-        float *t2,
+        glm::vec3 *i_ray_origs,
+        glm::vec3 *i_ray_vecs,
+        uint32_t *o_node_idxs,
+        bool *o_masks,
+        float *o_t1,
+        float *o_t2,
         int n_rays
     ) {
         bool alive = false;
 
+        Rays rays = {i_ray_origs, i_ray_vecs};
+        StackInfos stack_infos = get_stack_infos();
+
         #pragma omp parallel for reduction(||: alive)
         for (int i = 0; i < n_rays; i++) {
-            Ray ray = {ray_origins[i], ray_vectors[i]};
-            StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_limit};
+            Ray ray = rays[i];
+            StackInfo stack_info = stack_infos[i];
 
-            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX, false);
-            masks[i] = hit.hit;
-            node_idxs[i] = hit.node_idx;
-            t1[i] = hit.t1;
-            t2[i] = hit.t2;
+            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX, false);
+            o_masks[i] = hit.hit;
+            if (hit.hit) {
+                o_node_idxs[i] = hit.node_idx;
+                o_t1[i] = hit.t1;
+                o_t2[i] = hit.t2;
+            }
 
             alive = alive || hit.hit;
         }
@@ -141,10 +199,10 @@ struct CPUTraverser {
     }
 
     void generate_camera_rays(
-        glm::vec3 *ray_origins,
-        glm::vec3 *ray_vectors,
-        bool *masks,
-        float *t,
+        glm::vec3 *o_ray_origs,
+        glm::vec3 *o_ray_vecs,
+        bool *o_masks,
+        float *o_t,
         int img_size
     ) {
         // ==== Set up default Camera ==== //
@@ -173,8 +231,11 @@ struct CPUTraverser {
                 glm::vec3 dir = cam_dir + x_dir * x_f + y_dir * y_f;
                 HitResult hit = closest_primitive_single({cam_pos, dir});
 
-                masks[y * img_size + x] = hit.hit;
-                t[y * img_size + x] = hit.t;
+                o_ray_origs[y * img_size + x] = cam_pos;
+                o_ray_vecs[y * img_size + x] = dir;
+
+                o_masks[y * img_size + x] = hit.hit;
+                o_t[y * img_size + x] = hit.t;
             }
         }        
     }

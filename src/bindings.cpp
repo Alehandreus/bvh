@@ -10,17 +10,20 @@
 
 namespace nb = nanobind;
 
-using h_float3 = nb::ndarray<float, nb::device::cpu, nb::shape<3>>;
+using h_float3 = nb::ndarray<float, nb::shape<3>, nb::numpy>;
 
 using h_float3_batch = nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>;
 using h_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
-using h_uint32_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
+using h_uint_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
 using h_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
+using h_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig>;
 
 using d_float3_batch = nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>;
 using d_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
-using d_uint32_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
+using d_uint_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 using d_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
+using d_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cuda, nb::c_contig>;
+
 
 NB_MODULE(bvh_impl, m) {
     nb::class_<Mesh>(m, "Mesh")
@@ -71,6 +74,7 @@ NB_MODULE(bvh_impl, m) {
             CPUTraverser& self,
             h_float3_batch& i_ray_origs,
             h_float3_batch& i_ray_vecs,
+            h_uintN_batch& o_bbox_idxs,
             h_bool_batch& o_mask,
             h_float_batch& o_t
         ) {
@@ -79,6 +83,7 @@ NB_MODULE(bvh_impl, m) {
             self.closest_primitive(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
+                o_bbox_idxs.data(),
                 o_mask.data(),
                 o_t.data(),
                 n_rays
@@ -88,8 +93,8 @@ NB_MODULE(bvh_impl, m) {
             CPUTraverser& self,
             h_float3_batch& i_ray_origs,
             h_float3_batch& i_ray_vecs,
+            h_uintN_batch& o_bbox_idxs,
             h_bool_batch& o_mask,
-            h_uint32_batch& o_node_idxs,
             h_float_batch& o_t1,
             h_float_batch& o_t2
         ) {
@@ -98,8 +103,8 @@ NB_MODULE(bvh_impl, m) {
             self.closest_bbox(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
-                o_mask.data(),
-                o_node_idxs.data(),
+                o_bbox_idxs.data(),
+                o_mask.data(),                
                 o_t1.data(),
                 o_t2.data(),
                 n_rays
@@ -109,22 +114,24 @@ NB_MODULE(bvh_impl, m) {
             CPUTraverser& self,
             h_float3_batch& i_ray_origs,
             h_float3_batch& i_ray_vecs,
-            h_bool_batch& o_mask,
-            h_uint32_batch& o_node_idxs,
+            h_uintN_batch& o_bbox_idxs,
+            h_bool_batch& o_mask,            
             h_float_batch& o_t1,
             h_float_batch& o_t2
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
-            self.another_bbox(
+            bool alive = self.another_bbox(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
+                o_bbox_idxs.data(),
                 o_mask.data(),
-                o_node_idxs.data(),
                 o_t1.data(),
                 o_t2.data(),
                 n_rays
             );
+
+            return alive;
         })
     ;
 
@@ -145,7 +152,7 @@ NB_MODULE(bvh_impl, m) {
             uint32_t n_rays,
             d_float3_batch& o_ray_origs,
             d_float3_batch& o_ray_vecs,
-            d_uint32_batch& o_bbox_idxs,
+            d_uintN_batch& o_bbox_idxs,
             d_bool_batch& o_mask,
             d_float_batch& o_t
         ) {
@@ -162,6 +169,7 @@ NB_MODULE(bvh_impl, m) {
             GPUTraverser& self,
             d_float3_batch& i_ray_origs,
             d_float3_batch& i_ray_vecs,
+            d_uintN_batch& o_bbox_idxs,
             d_bool_batch& o_mask,
             d_float_batch& o_t
         ) {
@@ -170,6 +178,7 @@ NB_MODULE(bvh_impl, m) {
             self.closest_primitive(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
+                o_bbox_idxs.data(),
                 o_mask.data(),
                 o_t.data(),
                 n_rays
@@ -179,24 +188,26 @@ NB_MODULE(bvh_impl, m) {
             GPUTraverser& self,
             d_float3_batch& i_ray_origs,
             d_float3_batch& i_ray_vecs,
+            d_uintN_batch& o_bbox_idxs,
             d_bool_batch& o_mask,
-            d_uint32_batch& o_node_idxs,
             d_float_batch& o_t1,
             d_float_batch& o_t2,
             bool nbvh_only
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
-            self.another_bbox(
+            bool alive = self.another_bbox(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
+                o_bbox_idxs.data(),
                 o_mask.data(),
-                o_node_idxs.data(),
                 o_t1.data(),
                 o_t2.data(),
                 n_rays,
                 nbvh_only
             );
+
+            return alive;
         })
     ;
     #endif

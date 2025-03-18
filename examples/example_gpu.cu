@@ -75,10 +75,12 @@ int main() {
     }
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
 
+    thrust::device_vector<uint32_t> bbox_idxs(n_rays * 64);
     thrust::device_vector<glm::vec3> ray_origins_d = ray_origins;
     thrust::device_vector<glm::vec3> ray_vectors_d = ray_vectors;
     thrust::device_vector<bool> masks_d = masks;
-    thrust::device_vector<float> t_d = t;
+    thrust::device_vector<float> t1_d = t;
+    thrust::device_vector<float> t2_d = t;
 
     cout << endl;
 
@@ -87,17 +89,21 @@ int main() {
 
     cout << "Rendering image..." << endl;
     timer_start();
-    bvh.closest_primitive(
+    bvh.traverse(
         ray_origins_d.data().get(),
         ray_vectors_d.data().get(),
+        bbox_idxs.data().get(),
         masks_d.data().get(),
-        t_d.data().get(),
-        n_rays
+        t1_d.data().get(),
+        t2_d.data().get(),
+        n_rays,
+        TreeType::BVH,
+        TraverseMode::CLOSEST_PRIMITIVE
     );
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
 
     masks = masks_d;
-    t = t_d;
+    t = t1_d;
 
     cout << endl;
 

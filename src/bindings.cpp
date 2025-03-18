@@ -24,8 +24,20 @@ using d_uint_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cuda, nb::
 using d_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 using d_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cuda, nb::c_contig>;
 
-
 NB_MODULE(bvh_impl, m) {
+    nb::enum_<TreeType>(m, "TreeType")
+        .value("BVH", TreeType::BVH)
+        .value("NBVH", TreeType::NBVH)
+        .export_values()
+    ;
+
+    nb::enum_<TraverseMode>(m, "TraverseMode")
+        .value("CLOSEST_PRIMITIVE", TraverseMode::CLOSEST_PRIMITIVE)
+        .value("CLOSEST_BBOX", TraverseMode::CLOSEST_BBOX)
+        .value("ANOTHER_BBOX", TraverseMode::ANOTHER_BBOX)
+        .export_values()
+    ;
+
     nb::class_<Mesh>(m, "Mesh")
         .def(nb::init<const char *>())
         .def("split_faces", &Mesh::split_faces)
@@ -70,65 +82,29 @@ NB_MODULE(bvh_impl, m) {
     nb::class_<CPUTraverser>(m, "CPUTraverser")
         .def(nb::init<const BVHData&>())
         .def("reset_stack", &CPUTraverser::reset_stack)
-        .def("closest_primitive", [](
-            CPUTraverser& self,
-            h_float3_batch& i_ray_origs,
-            h_float3_batch& i_ray_vecs,
-            h_uintN_batch& o_bbox_idxs,
-            h_bool_batch& o_mask,
-            h_float_batch& o_t
-        ) {
-            uint32_t n_rays = i_ray_origs.shape(0);
-
-            self.closest_primitive(
-                (glm::vec3 *) i_ray_origs.data(),
-                (glm::vec3 *) i_ray_vecs.data(),
-                o_bbox_idxs.data(),
-                o_mask.data(),
-                o_t.data(),
-                n_rays
-            );
-        })
-         .def("closest_bbox", [](
+        .def("traverse", [](
             CPUTraverser& self,
             h_float3_batch& i_ray_origs,
             h_float3_batch& i_ray_vecs,
             h_uintN_batch& o_bbox_idxs,
             h_bool_batch& o_mask,
             h_float_batch& o_t1,
-            h_float_batch& o_t2
+            h_float_batch& o_t2,
+            TreeType tree_type,
+            TraverseMode mode
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
-            self.closest_bbox(
-                (glm::vec3 *) i_ray_origs.data(),
-                (glm::vec3 *) i_ray_vecs.data(),
-                o_bbox_idxs.data(),
-                o_mask.data(),                
-                o_t1.data(),
-                o_t2.data(),
-                n_rays
-            );
-        })
-        .def("another_bbox", [](
-            CPUTraverser& self,
-            h_float3_batch& i_ray_origs,
-            h_float3_batch& i_ray_vecs,
-            h_uintN_batch& o_bbox_idxs,
-            h_bool_batch& o_mask,            
-            h_float_batch& o_t1,
-            h_float_batch& o_t2
-        ) {
-            uint32_t n_rays = i_ray_origs.shape(0);
-
-            bool alive = self.another_bbox(
+            bool alive = self.traverse(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
                 o_bbox_idxs.data(),
                 o_mask.data(),
                 o_t1.data(),
                 o_t2.data(),
-                n_rays
+                n_rays,
+                tree_type,
+                mode
             );
 
             return alive;
@@ -147,6 +123,33 @@ NB_MODULE(bvh_impl, m) {
         .def("grow_nbvh", [](GPUTraverser& self) {
             self.grow_nbvh();
         })
+        .def("traverse", [](
+            GPUTraverser& self,
+            d_float3_batch& i_ray_origs,
+            d_float3_batch& i_ray_vecs,
+            d_uintN_batch& o_bbox_idxs,
+            d_bool_batch& o_mask,
+            d_float_batch& o_t1,
+            d_float_batch& o_t2,
+            TreeType tree_type,
+            TraverseMode mode
+        ) {
+            uint32_t n_rays = i_ray_origs.shape(0);
+
+            bool alive = self.traverse(
+                (glm::vec3 *) i_ray_origs.data(),
+                (glm::vec3 *) i_ray_vecs.data(),
+                o_bbox_idxs.data(),
+                o_mask.data(),
+                o_t1.data(),
+                o_t2.data(),
+                n_rays,
+                tree_type,
+                mode
+            );
+
+            return alive;
+        })
         .def("bbox_raygen", [](
             GPUTraverser& self, 
             uint32_t n_rays,
@@ -164,50 +167,6 @@ NB_MODULE(bvh_impl, m) {
                 o_t.data(),
                 n_rays
             );
-        })
-        .def("closest_primitive", [](
-            GPUTraverser& self,
-            d_float3_batch& i_ray_origs,
-            d_float3_batch& i_ray_vecs,
-            d_uintN_batch& o_bbox_idxs,
-            d_bool_batch& o_mask,
-            d_float_batch& o_t
-        ) {
-            uint32_t n_rays = i_ray_origs.shape(0);
-
-            self.closest_primitive(
-                (glm::vec3 *) i_ray_origs.data(),
-                (glm::vec3 *) i_ray_vecs.data(),
-                o_bbox_idxs.data(),
-                o_mask.data(),
-                o_t.data(),
-                n_rays
-            );
-        })
-        .def("another_bbox", [](
-            GPUTraverser& self,
-            d_float3_batch& i_ray_origs,
-            d_float3_batch& i_ray_vecs,
-            d_uintN_batch& o_bbox_idxs,
-            d_bool_batch& o_mask,
-            d_float_batch& o_t1,
-            d_float_batch& o_t2,
-            bool nbvh_only
-        ) {
-            uint32_t n_rays = i_ray_origs.shape(0);
-
-            bool alive = self.another_bbox(
-                (glm::vec3 *) i_ray_origs.data(),
-                (glm::vec3 *) i_ray_vecs.data(),
-                o_bbox_idxs.data(),
-                o_mask.data(),
-                o_t1.data(),
-                o_t2.data(),
-                n_rays,
-                nbvh_only
-            );
-
-            return alive;
         })
     ;
     #endif

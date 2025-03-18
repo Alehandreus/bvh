@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import torch
 
 from bvh import Mesh, CPUBuilder, GPUTraverser
+from bvh import TreeType, TraverseMode
 
 
 # ==== Load and prepare BVH ==== #
@@ -57,60 +58,35 @@ d_dirs = torch.from_numpy(dirs).cuda()
 
 bbox_idxs = torch.zeros((cam_poses.shape[0], 64), dtype=torch.uint32).cuda()
 mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
-t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
+t1 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
 t2 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
 
-mode = "nbvh"
+mode = TraverseMode.CLOSEST_PRIMITIVE
 
-if mode == "closest_primitive":
-    bvh.closest_primitive(d_cam_poses, d_dirs, bbox_idxs, mask, t)
-
-if mode == "random_bbox":
-    bvh.reset_stack(cam_poses.shape[0])
-    alive = bvh.another_bbox(d_cam_poses, d_dirs, bbox_idxs, mask, t, t2, False)
-
-if mode == "another_bbox":
+if mode != TraverseMode.ANOTHER_BBOX:
+    bvh.traverse(d_cam_poses, d_dirs, bbox_idxs, mask, t1, t2, TreeType.BVH, mode)
+else:
     total_mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
     total_t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
 
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive = bvh.another_bbox(d_cam_poses, d_dirs, bbox_idxs, mask, t, t2, False)
+        alive = bvh.traverse(d_cam_poses, d_dirs, bbox_idxs, mask, t1, t2, False)
 
         total_mask = total_mask | mask
-        total_t[mask & (t < total_t)] = t[mask & (t < total_t)]
-    
-    mask = total_mask
-    t = total_t
-    t[t == 1e9] = 0
-
-if mode == "nbvh":
-    bvh.grow_nbvh()
-    bvh.grow_nbvh()
-    bvh.grow_nbvh()
-
-    total_mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
-    total_t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
-
-    alive = True
-    bvh.reset_stack(cam_poses.shape[0])
-    while alive:
-        alive = bvh.another_bbox(d_cam_poses, d_dirs, bbox_idxs, mask, t, t2, True)
-
-        total_mask = total_mask | mask
-        total_t[mask & (t < total_t)] = t[mask & (t < total_t)]
+        total_t[mask & (t1 < total_t)] = t1[mask & (t < total_t)]
 
     mask = total_mask
-    t = total_t
-    t[t == 1e9] = 0
+    t1 = total_t
+    t1[t1 == 1e9] = 0
 
 
 # ==== Visualize ==== #
 
 mask_img = mask.reshape(img_size, img_size)
 mask_img = mask_img.cpu().numpy()
-t = t.cpu().numpy()
+t = t1.cpu().numpy()
 
 image = np.zeros((img_size, img_size, 3))
 

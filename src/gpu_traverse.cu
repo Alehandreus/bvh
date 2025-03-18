@@ -10,33 +10,15 @@ CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states) {
     curand_init(1234, i, 0, states + i);
 }
 
-CUDA_GLOBAL void closest_primitive_entry(
-    const Rays i_rays,
-    const BVHDataPointers i_dp,
-    StackInfos io_stack_infos,
-    PrimOut o_out,
-    int n_rays
-) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= n_rays) {
-        return;
-    }
-
-    Ray ray = i_rays[i];
-    StackInfo stack_info = io_stack_infos[i];
-
-    HitResult hit = bvh_traverse(ray, i_dp, stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
-    o_out.fill(i, hit);
-}
-
-CUDA_GLOBAL void another_bbox_entry(
+CUDA_GLOBAL void traverse_entry(
     const Rays i_rays,
     const BVHDataPointers i_dp,
     StackInfos io_stack_infos,
     BboxOut o_out,
-    int *o_alive,
     int n_rays,
-    bool nbvh_only
+    TreeType tree_type,
+    TraverseMode traverse_mode,
+    int *o_alive
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_rays) {
@@ -46,11 +28,13 @@ CUDA_GLOBAL void another_bbox_entry(
     Ray ray = i_rays[i];
     StackInfo stack_info = io_stack_infos[i];
 
-    HitResult hit = bvh_traverse(ray, i_dp, stack_info, TraverseMode::ANOTHER_BBOX, nbvh_only);
+    HitResult hit = bvh_traverse(ray, i_dp, stack_info, traverse_mode, tree_type == TreeType::NBVH);
     o_out.fill(i, hit);
 
-    // I am sorry
-    atomicOr(o_alive, hit.hit);
+    if (traverse_mode == TraverseMode::ANOTHER_BBOX) {
+        // I am sorry
+        atomicOr(o_alive, hit.hit);
+    }
 }
 
 CUDA_GLOBAL void bbox_raygen_entry(

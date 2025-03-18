@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from bvh import Mesh, CPUBuilder, CPUTraverser
+from bvh import TreeType, TraverseMode
 
 
 # ==== Load and prepare BVH ==== #
@@ -53,36 +54,28 @@ dirs = cam_dir[None, :] + x_dir[None, :] * x_coords[:, None] + y_dir[None, :] * 
 
 bbox_idxs = np.zeros((cam_poses.shape[0], 64), dtype=np.uint32)
 mask = np.zeros((cam_poses.shape[0],), dtype=np.bool_)
-t = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
+t1 = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
 t2 = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
 
-mode = "closest_primitive"
+mode = TraverseMode.CLOSEST_PRIMITIVE
 
-if mode == "closest_primitive":
-    bvh.closest_primitive(cam_poses, dirs, bbox_idxs, mask, t)
-
-if mode == "closest_bbox":
-    bvh.closest_bbox(cam_poses, dirs, bbox_idxs, mask, t, t2)
-
-if mode == "random_bbox":
-    bvh.reset_stack(cam_poses.shape[0])  
-    alive = bvh.another_bbox(cam_poses, dirs, bbox_idxs, mask, t, t2)
-
-if mode == "another_bbox":
+if mode != TraverseMode.ANOTHER_BBOX:
+    bvh.traverse(cam_poses, dirs, bbox_idxs, mask, t1, t2, TreeType.BVH, mode)
+else:
     total_mask = np.zeros((cam_poses.shape[0],), dtype=np.bool_)
     total_t = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
 
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive = bvh.another_bbox(cam_poses, dirs, bbox_idxs, mask, t, t2)
+        alive = bvh.traverse(cam_poses, dirs, bbox_idxs, mask, t1, t2, TreeType.BVH, mode)
 
         total_mask = total_mask | mask
-        total_t[mask & (t < total_t)] = t[mask & (t < total_t)]
+        total_t[mask & (t1 < total_t)] = t1[mask & (t1 < total_t)]
 
     mask = total_mask
-    t = total_t
-    t[t == 1e9] = 0
+    t1 = total_t
+    t1[t1 == 1e9] = 0
 
 
 # ==== Visualize ==== #
@@ -91,7 +84,7 @@ mask_img = mask.reshape(img_size, img_size)
 
 image = np.zeros((img_size, img_size, 3))
 
-img = t.reshape(img_size, img_size)
+img = t1.reshape(img_size, img_size)
 img[~mask_img] = np.min(img[mask_img])
 img = (img - np.min(img)) / (np.max(img) - np.min(img))
 img = 1 - img

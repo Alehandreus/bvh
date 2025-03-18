@@ -12,6 +12,11 @@
 
 #include "build.h"
 
+enum class TreeType {
+    BVH,
+    NBVH
+};
+
 struct BVHDataPointers {
     const glm::vec3 *vertices;
     const Face *faces;
@@ -114,67 +119,22 @@ struct CPUTraverser {
         return bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
     }
 
-    void closest_primitive(
+    bool traverse(
         glm::vec3 *i_ray_origs,
         glm::vec3 *i_ray_vecs,
-        uint32_t *o_node_idxs,
-        bool *o_masks,
-        float *o_t,
-        int n_rays
-    ) {
-        reset_stack(n_rays);
-
-        Rays rays = {i_ray_origs, i_ray_vecs};
-        StackInfos stack_infos = get_stack_infos();
-
-        #pragma omp parallel for
-        for (int i = 0; i < n_rays; i++) {
-            Ray ray = rays[i];
-            StackInfo stack_info = stack_infos[i];
-
-            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
-            o_masks[i] = hit.hit;
-            o_t[i] = hit.t;
-        }
-    }
-
-    void closest_bbox(
-        glm::vec3 *i_ray_origs,
-        glm::vec3 *i_ray_vecs,
-        uint32_t *o_node_idxs,
+        uint32_t *o_bbox_idxs,
         bool *o_masks,
         float *o_t1,
         float *o_t2,
-        int n_rays
+        int n_rays,
+        TreeType tree_type,
+        TraverseMode traverse_mode
     ) {
-        reset_stack(n_rays);
-
-        Rays rays = {i_ray_origs, i_ray_vecs};
-        StackInfos stack_infos = get_stack_infos();
-
-        #pragma omp parallel for
-        for (int i = 0; i < n_rays; i++) {
-            Ray ray = rays[i];
-            StackInfo stack_info = stack_infos[i];
-
-            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::CLOSEST_BBOX, false);
-            o_masks[i] = hit.hit;
-            o_node_idxs[i] = hit.node_idx;
-            o_t1[i] = hit.t1;
-            o_t2[i] = hit.t2;
+        if (traverse_mode != TraverseMode::ANOTHER_BBOX) {
+            reset_stack(n_rays);
         }
-    }
 
-    bool another_bbox(
-        glm::vec3 *i_ray_origs,
-        glm::vec3 *i_ray_vecs,
-        uint32_t *o_node_idxs,
-        bool *o_masks,
-        float *o_t1,
-        float *o_t2,
-        int n_rays
-    ) {
-        bool alive = false;
+        int alive = false;
 
         Rays rays = {i_ray_origs, i_ray_vecs};
         StackInfos stack_infos = get_stack_infos();
@@ -184,10 +144,10 @@ struct CPUTraverser {
             Ray ray = rays[i];
             StackInfo stack_info = stack_infos[i];
 
-            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX, false);
+            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, traverse_mode, false);
             o_masks[i] = hit.hit;
             if (hit.hit) {
-                o_node_idxs[i] = hit.node_idx;
+                o_bbox_idxs[i] = hit.node_idx;
                 o_t1[i] = hit.t1;
                 o_t2[i] = hit.t2;
             }

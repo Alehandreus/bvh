@@ -10,22 +10,15 @@
 
 CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states);
 
-CUDA_GLOBAL void closest_primitive_entry(
-    const Rays i_rays,
-    const BVHDataPointers i_dp,
-    StackInfos io_stack_infos,
-    PrimOut o_out,
-    int n_rays
-);
-
-CUDA_GLOBAL void another_bbox_entry(
+CUDA_GLOBAL void traverse_entry(
     const Rays i_rays,
     const BVHDataPointers i_dp,
     StackInfos io_stack_infos,
     BboxOut o_out,
-    int *o_alive,
     int n_rays,
-    bool nbvh_only
+    TreeType tree_type,
+    TraverseMode traverse_mode,
+    int *o_alive
 );
 
 CUDA_GLOBAL void bbox_raygen_entry(
@@ -170,29 +163,7 @@ struct GPUTraverser {
         );
     }
 
-    void closest_primitive(
-        glm::vec3 *i_ray_origs,
-        glm::vec3 *i_ray_vecs,
-        uint32_t *o_bbox_idxs,
-        bool *o_masks,
-        float *o_t,
-        int n_rays
-    ) {
-        reset_stack(n_rays);
-
-        Rays rays = {i_ray_origs, i_ray_vecs};
-        PrimOut prim_out = {o_masks, o_t};
-
-        closest_primitive_entry<<<(n_rays + 31) / 32, 32>>>(
-            rays,
-            get_data_pointers(),
-            get_stack_infos(),
-            prim_out,
-            n_rays
-        );
-    }
-
-    bool another_bbox(
+    bool traverse(
         glm::vec3 *i_ray_origs,
         glm::vec3 *i_ray_vecs,
         uint32_t *o_bbox_idxs,
@@ -200,32 +171,40 @@ struct GPUTraverser {
         float *o_t1,
         float *o_t2,
         int n_rays,
-        bool nbvh_only
+        TreeType tree_type,
+        TraverseMode traverse_mode
     ) {
-        // needs to be wavefront
+        if (traverse_mode != TraverseMode::ANOTHER_BBOX) {
+            reset_stack(n_rays);
+        }
 
-        int *d_alive;
-        cudaMalloc(&d_alive, sizeof(int));
-        cudaMemset(d_alive, 0, sizeof(int));
+        int *d_alive = nullptr;
+        if (traverse_mode == TraverseMode::ANOTHER_BBOX) {
+            cudaMalloc(&d_alive, sizeof(int));
+            cudaMemset(d_alive, 0, sizeof(int));
+        }
 
         Rays rays = {i_ray_origs, i_ray_vecs};
         BboxOut bbox_out = {o_masks, o_t1, o_t2};
 
-        another_bbox_entry<<<(n_rays + 31) / 32, 32>>>(
+        traverse_entry<<<(n_rays + 31) / 32, 32>>>(
             rays,
             get_data_pointers(),
             get_stack_infos(),
             bbox_out,
-            d_alive,
             n_rays,
-            nbvh_only
+            tree_type,
+            traverse_mode,
+            d_alive
         );
 
-        int alive;
-        cudaMemcpy(&alive, d_alive, sizeof(int), cudaMemcpyDeviceToHost);
-        
-        cudaFree(d_alive);
+        if (traverse_mode == TraverseMode::ANOTHER_BBOX) {
+            int alive;
+            cudaMemcpy(&alive, d_alive, sizeof(int), cudaMemcpyDeviceToHost);            
+            cudaFree(d_alive);
+            return alive;
+        }
 
-        return alive;
+        return false;
     }
 };

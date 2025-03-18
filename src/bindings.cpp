@@ -10,44 +10,17 @@
 
 namespace nb = nanobind;
 
-using Vector3f = nb::ndarray<float, nb::numpy, nb::shape<3>>;
+using h_float3 = nb::ndarray<float, nb::device::cpu, nb::shape<3>>;
 
-#ifdef CUDA_ENABLED
-struct HitResultCuda {
-    bool *mask_ptr;
-    float *t_ptr;
-    float *t1_ptr;
-    float *t2_ptr;
-    uint32_t *node_idxs_ptr;
-    uint32_t *nn_idxs_ptr;
-    // union {
-    //     float *t_ptr;
-    //     struct {
-    //         float *t1_ptr;
-    //         float *t2_ptr;
-    //         uint32_t *node_idxs_ptr;
-    //     };
-    // };
+using h_float3_batch = nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>;
+using h_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
+using h_uint32_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
+using h_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
 
-    HitResultCuda(uint32_t n_rays) {
-        cudaMalloc(&mask_ptr, n_rays * sizeof(bool));
-        cudaMalloc(&t_ptr, n_rays * sizeof(float));
-        cudaMalloc(&t1_ptr, n_rays * sizeof(float));
-        cudaMalloc(&t2_ptr, n_rays * sizeof(float));
-        cudaMalloc(&node_idxs_ptr, n_rays * sizeof(uint32_t));
-        cudaMalloc(&nn_idxs_ptr, n_rays * sizeof(uint32_t));
-    }
-
-    ~HitResultCuda() {
-        cudaFree(mask_ptr);
-        cudaFree(t_ptr);
-        cudaFree(t1_ptr);
-        cudaFree(t2_ptr);
-        cudaFree(node_idxs_ptr);
-        cudaFree(nn_idxs_ptr);
-    }
-};
-#endif
+using d_float3_batch = nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>;
+using d_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
+using d_uint32_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
+using d_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 
 NB_MODULE(bvh_impl, m) {
     nb::class_<Mesh>(m, "Mesh")
@@ -56,8 +29,8 @@ NB_MODULE(bvh_impl, m) {
         .def("bounds", [](Mesh& self) {
             auto [min, max] = self.bounds();
             return nb::make_tuple(
-                Vector3f(&min).cast(),
-                Vector3f(&max).cast()
+                h_float3(&min).cast(),
+                h_float3(&max).cast()
             );
         })
     ;
@@ -96,71 +69,62 @@ NB_MODULE(bvh_impl, m) {
         .def("reset_stack", &CPUTraverser::reset_stack)
         .def("closest_primitive", [](
             CPUTraverser& self,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_vectors
+            h_float3_batch& i_ray_origs,
+            h_float3_batch& i_ray_vecs,
+            h_bool_batch& o_mask,
+            h_float_batch& o_t
         ) {
-            uint32_t n_rays = ray_origins.shape(0);
+            uint32_t n_rays = i_ray_origs.shape(0);
 
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
-
-            bool *mask_ptr = new bool[n_rays];
-            float *t_ptr = new float[n_rays];
-
-            self.closest_primitive(ray_origins_ptr, ray_vectors_ptr, mask_ptr, t_ptr, n_rays);
-
-            auto mask = nb::ndarray<bool, nb::numpy>(mask_ptr, {n_rays});
-            auto t = nb::ndarray<float, nb::numpy>(t_ptr, {n_rays});
-
-            return nb::make_tuple(mask, t);
+            self.closest_primitive(
+                (glm::vec3 *) i_ray_origs.data(),
+                (glm::vec3 *) i_ray_vecs.data(),
+                o_mask.data(),
+                o_t.data(),
+                n_rays
+            );
         })
          .def("closest_bbox", [](
             CPUTraverser& self,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_vectors
+            h_float3_batch& i_ray_origs,
+            h_float3_batch& i_ray_vecs,
+            h_bool_batch& o_mask,
+            h_uint32_batch& o_node_idxs,
+            h_float_batch& o_t1,
+            h_float_batch& o_t2
         ) {
-            uint32_t n_rays = ray_origins.shape(0);
+            uint32_t n_rays = i_ray_origs.shape(0);
 
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
-
-            bool *mask_ptr = new bool[n_rays];
-            uint32_t *node_idxs_ptr = new uint32_t[n_rays];
-            float *t1_ptr = new float[n_rays];
-            float *t2_ptr = new float[n_rays];
-
-            self.closest_bbox(ray_origins_ptr, ray_vectors_ptr, mask_ptr, node_idxs_ptr, t1_ptr, t2_ptr, n_rays);
-
-            auto mask = nb::ndarray<bool, nb::numpy>(mask_ptr, {n_rays});
-            auto node_idxs = nb::ndarray<uint32_t, nb::numpy>(node_idxs_ptr, {n_rays});
-            auto t1 = nb::ndarray<float, nb::numpy>(t1_ptr, {n_rays});
-            auto t2 = nb::ndarray<float, nb::numpy>(t2_ptr, {n_rays});
-
-            return nb::make_tuple(mask, node_idxs, t1, t2);
+            self.closest_bbox(
+                (glm::vec3 *) i_ray_origs.data(),
+                (glm::vec3 *) i_ray_vecs.data(),
+                o_mask.data(),
+                o_node_idxs.data(),
+                o_t1.data(),
+                o_t2.data(),
+                n_rays
+            );
         })
         .def("another_bbox", [](
             CPUTraverser& self,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_origins,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>& ray_vectors
+            h_float3_batch& i_ray_origs,
+            h_float3_batch& i_ray_vecs,
+            h_bool_batch& o_mask,
+            h_uint32_batch& o_node_idxs,
+            h_float_batch& o_t1,
+            h_float_batch& o_t2
         ) {
-            uint32_t n_rays = ray_origins.shape(0);
+            uint32_t n_rays = i_ray_origs.shape(0);
 
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
-
-            bool *mask_ptr = new bool[n_rays];
-            uint32_t *node_idxs_ptr = new uint32_t[n_rays];
-            float *t1_ptr = new float[n_rays];
-            float *t2_ptr = new float[n_rays];
-
-            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, mask_ptr, node_idxs_ptr, t1_ptr, t2_ptr, n_rays);
-
-            auto mask = nb::ndarray<bool, nb::numpy>(mask_ptr, {n_rays});
-            auto node_idxs = nb::ndarray<uint32_t, nb::numpy>(node_idxs_ptr, {n_rays});
-            auto t1 = nb::ndarray<float, nb::numpy>(t1_ptr, {n_rays});
-            auto t2 = nb::ndarray<float, nb::numpy>(t2_ptr, {n_rays});
-
-            return nb::make_tuple(alive, mask, node_idxs, t1, t2);
+            self.another_bbox(
+                (glm::vec3 *) i_ray_origs.data(),
+                (glm::vec3 *) i_ray_vecs.data(),
+                o_mask.data(),
+                o_node_idxs.data(),
+                o_t1.data(),
+                o_t2.data(),
+                n_rays
+            );
         })
     ;
 
@@ -176,126 +140,63 @@ NB_MODULE(bvh_impl, m) {
         .def("grow_nbvh", [](GPUTraverser& self) {
             self.grow_nbvh();
         })
-        .def("assign_nns", &GPUTraverser::assign_nns)
-        .def("bbox_raygen", [](GPUTraverser& self, int n_rays_) {
-            uint32_t n_rays = n_rays_;
-
-            struct Temp {
-                glm::vec3 *ray_origin_ptr;
-                glm::vec3 *ray_end_ptr;
-                uint32_t *bbox_idxs_ptr;
-                uint32_t *nn_idxs_ptr;
-                bool *mask_ptr;
-                float *t_ptr;
-                Temp(int n_rays) {
-                    cudaMalloc(&ray_origin_ptr, sizeof(glm::vec3) * n_rays);
-                    cudaMalloc(&ray_end_ptr, sizeof(glm::vec3) * n_rays);
-                    cudaMalloc(&bbox_idxs_ptr, sizeof(uint32_t) * n_rays);
-                    cudaMalloc(&nn_idxs_ptr, sizeof(uint32_t) * n_rays);
-                    cudaMalloc(&mask_ptr, sizeof(bool) * n_rays);
-                    cudaMalloc(&t_ptr, sizeof(float) * n_rays);
-                }
-                ~Temp() {
-                    cudaFree(ray_origin_ptr);
-                    cudaFree(ray_end_ptr);
-                    cudaFree(bbox_idxs_ptr);
-                    cudaFree(nn_idxs_ptr);
-                    cudaFree(mask_ptr);
-                    cudaFree(t_ptr);
-                }
-            };
-
-            Temp *temp = new Temp(n_rays);
-
-            nb::capsule deleter(temp, [](void *p) noexcept {
-                delete (Temp *) p;
-            });
-
-            self.bbox_raygen(temp->ray_origin_ptr, temp->ray_end_ptr, temp->bbox_idxs_ptr, temp->nn_idxs_ptr, temp->mask_ptr, temp->t_ptr, n_rays);
-
-            auto ray_origin = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->ray_origin_ptr, {n_rays, 3}, deleter);
-            auto ray_end = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->ray_end_ptr, {n_rays, 3}, deleter);
-            auto bbox_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->bbox_idxs_ptr, {n_rays}, deleter);
-            auto nn_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->nn_idxs_ptr, {n_rays}, deleter);
-            auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
-            auto t = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t_ptr, {n_rays}, deleter);
-
-            return nb::make_tuple(ray_origin, ray_end, bbox_idxs, nn_idxs, mask, t);
+        .def("bbox_raygen", [](
+            GPUTraverser& self, 
+            uint32_t n_rays,
+            d_float3_batch& o_ray_origs,
+            d_float3_batch& o_ray_vecs,
+            d_uint32_batch& o_bbox_idxs,
+            d_bool_batch& o_mask,
+            d_float_batch& o_t
+        ) {
+            self.bbox_raygen(
+                (glm::vec3 *) o_ray_origs.data(),
+                (glm::vec3 *) o_ray_vecs.data(),
+                o_bbox_idxs.data(),
+                o_mask.data(),
+                o_t.data(),
+                n_rays
+            );
         })
         .def("closest_primitive", [](
             GPUTraverser& self,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_origins,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_vectors
+            d_float3_batch& i_ray_origs,
+            d_float3_batch& i_ray_vecs,
+            d_bool_batch& o_mask,
+            d_float_batch& o_t
         ) {
-            uint32_t n_rays = ray_origins.shape(0);
+            uint32_t n_rays = i_ray_origs.shape(0);
 
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
-
-            HitResultCuda *temp = new HitResultCuda(n_rays);
-
-            nb::capsule deleter(temp, [](void *p) noexcept {
-                delete (HitResultCuda *) p;
-            });
-
-            self.closest_primitive(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->t_ptr, n_rays);
-
-            auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
-            auto t = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t_ptr, {n_rays}, deleter);
-
-            return nb::make_tuple(mask, t);
+            self.closest_primitive(
+                (glm::vec3 *) i_ray_origs.data(),
+                (glm::vec3 *) i_ray_vecs.data(),
+                o_mask.data(),
+                o_t.data(),
+                n_rays
+            );
         })
         .def("another_bbox", [](
             GPUTraverser& self,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_origins,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_vectors
+            d_float3_batch& i_ray_origs,
+            d_float3_batch& i_ray_vecs,
+            d_bool_batch& o_mask,
+            d_uint32_batch& o_node_idxs,
+            d_float_batch& o_t1,
+            d_float_batch& o_t2,
+            bool nbvh_only
         ) {
-            uint32_t n_rays = ray_origins.shape(0);
+            uint32_t n_rays = i_ray_origs.shape(0);
 
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
-
-            HitResultCuda *temp = new HitResultCuda(n_rays);
-
-            nb::capsule deleter(temp, [](void *p) noexcept {
-                delete (HitResultCuda *) p;
-            });
-
-            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->node_idxs_ptr, temp->nn_idxs_ptr, temp->t1_ptr, temp->t2_ptr, n_rays, TreeType::BVH);        
-
-            auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
-            auto node_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->node_idxs_ptr, {n_rays}, deleter);
-            auto nn_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->nn_idxs_ptr, {n_rays}, deleter);
-            auto t1 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t1_ptr, {n_rays}, deleter);
-            auto t2 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t2_ptr, {n_rays}, deleter);
-
-            return nb::make_tuple(alive, mask, node_idxs, nn_idxs, t1, t2);
-        })
-        .def("another_bbox_nbvh", [](
-            GPUTraverser& self,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_origins,
-            nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>& ray_vectors
-        ) {
-            uint32_t n_rays = ray_origins.shape(0);
-
-            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.data();
-            glm::vec3 *ray_vectors_ptr = (glm::vec3 *) ray_vectors.data();
-
-            HitResultCuda *temp = new HitResultCuda(n_rays);
-
-            nb::capsule deleter(temp, [](void *p) noexcept {
-                delete (HitResultCuda *) p;
-            });
-
-            bool alive = self.another_bbox(ray_origins_ptr, ray_vectors_ptr, temp->mask_ptr, temp->node_idxs_ptr, temp->nn_idxs_ptr, temp->t1_ptr, temp->t2_ptr, n_rays, TreeType::NBVH);        
-
-            auto mask = nb::ndarray<bool, nb::pytorch, nb::device::cuda>(temp->mask_ptr, {n_rays}, deleter);
-            auto node_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->node_idxs_ptr, {n_rays}, deleter);
-            auto nn_idxs = nb::ndarray<uint32_t, nb::pytorch, nb::device::cuda>(temp->nn_idxs_ptr, {n_rays}, deleter);
-            auto t1 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t1_ptr, {n_rays}, deleter);
-            auto t2 = nb::ndarray<float, nb::pytorch, nb::device::cuda>(temp->t2_ptr, {n_rays}, deleter);
-
-            return nb::make_tuple(alive, mask, node_idxs, nn_idxs, t1, t2);
+            self.another_bbox(
+                (glm::vec3 *) i_ray_origs.data(),
+                (glm::vec3 *) i_ray_vecs.data(),
+                o_mask.data(),
+                o_node_idxs.data(),
+                o_t1.data(),
+                o_t2.data(),
+                n_rays,
+                nbvh_only
+            );
         })
     ;
     #endif

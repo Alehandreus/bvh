@@ -30,17 +30,12 @@ enum class TraverseMode {
     ANOTHER_BBOX    
 };
 
-enum class TreeType {
-    BVH,
-    NBVH
-};
-
 CUDA_HOST_DEVICE HitResult bvh_traverse(
     const Ray &ray,
     const BVHDataPointers &dp,
     StackInfo &st,
     TraverseMode mode,
-    TreeType tree_type
+    bool nbvh_only
 );
 
 struct CPUTraverser {
@@ -69,7 +64,7 @@ struct CPUTraverser {
         int smol_stack_size = 1;
         StackInfo stack_info = {smol_stack_size, smol_stack.data()};
 
-        return bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
+        return bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
     }
 
     // this and others are intended for python use, so structures like Ray and HitResult are not exposed
@@ -87,7 +82,7 @@ struct CPUTraverser {
             Ray ray = {ray_origins[i], ray_vectors[i]};
             StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_limit};
 
-            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
+            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
             masks[i] = hit.hit;
             t[i] = hit.t;
         }
@@ -109,7 +104,7 @@ struct CPUTraverser {
             Ray ray = {ray_origins[i], ray_vectors[i]};
             StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_limit};
 
-            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_BBOX, TreeType::BVH);
+            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::CLOSEST_BBOX, false);
             masks[i] = hit.hit;
             node_idxs[i] = hit.node_idx;
             t1[i] = hit.t1;
@@ -133,7 +128,7 @@ struct CPUTraverser {
             Ray ray = {ray_origins[i], ray_vectors[i]};
             StackInfo stack_info = {stack_sizes[i], stack.data() + i * stack_limit};
 
-            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX, TreeType::BVH);
+            HitResult hit = bvh_traverse(ray, data_pointers(), stack_info, TraverseMode::ANOTHER_BBOX, false);
             masks[i] = hit.hit;
             node_idxs[i] = hit.node_idx;
             t1[i] = hit.t1;

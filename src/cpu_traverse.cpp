@@ -7,7 +7,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
     const BVHDataPointers &dp,
     StackInfo &st,
     TraverseMode mode,
-    TreeType tree_type
+    bool nbvh_only
 ) {
     HitResult closest_hit = {false, FLT_MAX, 0};
 
@@ -15,7 +15,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
         uint32_t node_idx = st.stack[--st.stack_size];
 
         bool is_leaf = dp.nodes[node_idx].is_leaf(); 
-        if (tree_type == TreeType::NBVH) {
+        if (nbvh_only) {
             is_leaf |= dp.nodes[node_idx].is_nbvh_leaf();
         }
 

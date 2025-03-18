@@ -30,7 +30,7 @@ CUDA_GLOBAL void closest_primitive_entry(
     Ray ray = {ray_origins[i], ray_vectors[i]};
     StackInfo stack_info = {stack_sizes[i], stack + i * stack_limit};
 
-    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
+    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
     masks[i] = hit.hit;
     t[i] = hit.t;
 }
@@ -44,12 +44,11 @@ CUDA_GLOBAL void another_bbox_entry(
     int stack_limit,
     bool *masks,
     uint32_t *node_idxs,
-    uint32_t *nn_idxs,
     float *t1,
     float *t2,
     int *alive,
     int n_rays,
-    TreeType tree_type
+    bool nbvh_only
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -60,16 +59,14 @@ CUDA_GLOBAL void another_bbox_entry(
     Ray ray = {ray_origins[i], ray_vectors[i]};
     StackInfo stack_info = {stack_sizes[i], stack + i * stack_limit};
 
-    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX, tree_type);
+    HitResult hit = bvh_traverse(ray, dp, stack_info, TraverseMode::ANOTHER_BBOX, nbvh_only);
     masks[i] = hit.hit;
     t1[i] = hit.t1;
     t2[i] = hit.t2;
     if (hit.hit) {
         node_idxs[i] = hit.node_idx;
-        nn_idxs[i] = dp.nodes[hit.node_idx].nn;
     } else {
         node_idxs[i] = 0;
-        nn_idxs[i] = 0;
     }
 
     // I am sorry
@@ -87,7 +84,6 @@ CUDA_GLOBAL void bbox_raygen_entry(
     glm::vec3 *ray_origins,
     glm::vec3 *ray_ends,
     uint32_t *bbox_idxs,
-    uint32_t *nn_idxs,
     bool *masks,
     float *t, // value in [0, 1]
     int n_rays
@@ -146,12 +142,11 @@ CUDA_GLOBAL void bbox_raygen_entry(
 
     (stack + i * stack_limit)[0] = leaf_idx;
 
-    HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, dp, st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
+    HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, dp, st, TraverseMode::CLOSEST_PRIMITIVE, false);
 
     ray_origins[i] = ray_origin;
     ray_ends[i] = ray_end;
     bbox_idxs[i] = leaf_idx;
-    nn_idxs[i] = leaf.nn;
     masks[i] = hit.hit;
     t[i] = hit.t;
 }

@@ -26,25 +26,37 @@ struct BVHDataPointers {
 
 struct StackInfo {
     int &cur_stack_size;
-    uint32_t *stack;
-
-    int &cur_depth;
-    uint32_t *bbox_idxs;
+    uint32_t *node_stack;
+    int *depth_stack;
 };
 
 struct StackInfos {
     int stack_limit;
     int *cur_stack_sizes;
-    uint32_t *stacks;
-
-    int depth_limit;
-    int *cur_depths;
-    uint32_t *bbox_idxs;
+    uint32_t *node_stacks;
+    int *depth_stacks;
 
     CUDA_HOST_DEVICE StackInfo operator[](int i) {
         return {
             cur_stack_sizes[i],
-            stacks + i * stack_limit,
+            node_stacks + i * stack_limit,
+            depth_stacks + i * stack_limit
+        };
+    }
+};
+
+struct DepthInfo {
+    int &cur_depth;
+    uint32_t *bbox_idxs;
+};
+
+struct DepthInfos {
+    int depth_limit;
+    int *cur_depths;
+    uint32_t *bbox_idxs;
+
+    CUDA_HOST_DEVICE DepthInfo operator[](int i) {
+        return {
             cur_depths[i],
             bbox_idxs + i * depth_limit
         };
@@ -61,8 +73,9 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
     const Ray &ray,
     const BVHDataPointers &dp,
     StackInfo &st,
+    DepthInfo &di,
     TraverseMode mode,
-    bool nbvh_only
+    TreeType tree_type
 );
 
 struct CPUTraverser {
@@ -95,37 +108,32 @@ struct CPUTraverser {
     }
 
     StackInfos get_stack_infos() {
-        return {
-            stack_limit, 
-            cur_stack_sizes.data(), 
-            stack.data(), 
-
-            stack_limit,
-            cur_depths.data(),
-            bbox_idxs.data()
-        };
+        return {stack_limit, cur_stack_sizes.data(), stack.data()};
     }
 
     // traverse single ray, use local stack to be thread-safe
     HitResult closest_primitive_single(const Ray &ray) const {
-        std::vector<uint32_t> smol_stack(stack_limit, 0);
+        std::vector<uint32_t> smol_node_stack(stack_limit, 0);
+        std::vector<int> smol_depth_stack(stack_limit, 0);
         int smol_stack_size = 1;
 
         std::vector<uint32_t> smol_bbox_idxs(bvh.depth, 0);
         int smol_depth = 0;
 
-        StackInfo stack_info = {smol_stack_size, smol_stack.data(), smol_depth, smol_bbox_idxs.data()};
+        StackInfo stack_info = {smol_stack_size, smol_node_stack.data(), smol_depth_stack.data()};
+        DepthInfo depth_info = {smol_depth, smol_bbox_idxs.data()};
 
-        return bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, false);
+        return bvh_traverse(ray, get_data_pointers(), stack_info, depth_info, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
     }
 
     bool traverse(
         glm::vec3 *i_ray_origs,
         glm::vec3 *i_ray_vecs,
-        uint32_t *o_bbox_idxs,
         bool *o_masks,
         float *o_t1,
         float *o_t2,
+        int *io_depths,
+        uint32_t *io_bbox_idxs,
         int n_rays,
         TreeType tree_type,
         TraverseMode traverse_mode
@@ -143,11 +151,11 @@ struct CPUTraverser {
         for (int i = 0; i < n_rays; i++) {
             Ray ray = rays[i];
             StackInfo stack_info = stack_infos[i];
+            DepthInfo depth_info = {io_depths[i], io_bbox_idxs + i * bvh.depth};
 
-            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, traverse_mode, false);
+            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, depth_info, traverse_mode, TreeType::BVH);
             o_masks[i] = hit.hit;
             if (hit.hit) {
-                o_bbox_idxs[i] = hit.node_idx;
                 o_t1[i] = hit.t1;
                 o_t2[i] = hit.t2;
             }

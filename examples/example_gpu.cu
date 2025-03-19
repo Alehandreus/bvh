@@ -7,7 +7,7 @@ int main() {
     /* ==== Load and prepare BVH ==== */
 
     cout << "Loading scene..." << endl;
-    Mesh mesh("suzanne.fbx");
+    Mesh mesh("models/lego.fbx");
     cout << "Number of vertices: " << mesh.vertices.size() << endl;
     cout << "Number of faces: " << mesh.faces.size() << endl;
 
@@ -22,7 +22,7 @@ int main() {
     
     CPUBuilder builder(mesh);
     cout << "Building BVH..." << endl;
-    BVHData bvh_data = builder.build_bvh(15);
+    BVHData bvh_data = builder.build_bvh(35);
     cout << "Depth: " << bvh_data.depth << endl;
     cout << "Number of nodes: " << bvh_data.n_nodes << endl;
     bvh_data.save_as_obj("bvh.obj");
@@ -75,6 +75,7 @@ int main() {
     }
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
 
+    thrust::device_vector<int> depths(n_rays);
     thrust::device_vector<uint32_t> bbox_idxs(n_rays * 64);
     thrust::device_vector<glm::vec3> ray_origins_d = ray_origins;
     thrust::device_vector<glm::vec3> ray_vectors_d = ray_vectors;
@@ -92,17 +93,17 @@ int main() {
     bvh.traverse(
         ray_origins_d.data().get(),
         ray_vectors_d.data().get(),
-        bbox_idxs.data().get(),
         masks_d.data().get(),
         t1_d.data().get(),
         t2_d.data().get(),
+        depths.data().get(),
+        bbox_idxs.data().get(),
         n_rays,
         TreeType::BVH,
         TraverseMode::CLOSEST_PRIMITIVE
     );
-    cout << "Elapsed time: " << timer_stop() << " ms" << endl;
-
     masks = masks_d;
+    cout << "Elapsed time: " << timer_stop() << " ms" << endl;
     t = t1_d;
 
     cout << endl;

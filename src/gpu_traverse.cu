@@ -14,7 +14,8 @@ CUDA_GLOBAL void traverse_entry(
     const Rays i_rays,
     const BVHDataPointers i_dp,
     StackInfos io_stack_infos,
-    BboxOut o_out,
+    HitResults o_out,
+    DepthInfos io_depth_infos,
     int n_rays,
     TreeType tree_type,
     TraverseMode traverse_mode,
@@ -27,8 +28,9 @@ CUDA_GLOBAL void traverse_entry(
 
     Ray ray = i_rays[i];
     StackInfo stack_info = io_stack_infos[i];
+    DepthInfo depth_info = io_depth_infos[i];
 
-    HitResult hit = bvh_traverse(ray, i_dp, stack_info, traverse_mode, tree_type == TreeType::NBVH);
+    HitResult hit = bvh_traverse(ray, i_dp, stack_info, depth_info, traverse_mode, tree_type);
     o_out.fill(i, hit);
 
     if (traverse_mode == TraverseMode::ANOTHER_BBOX) {
@@ -43,8 +45,9 @@ CUDA_GLOBAL void bbox_raygen_entry(
     curandState *io_rand_states,
     uint32_t *i_leaf_idxs,
     int n_leaves,
+    DepthInfos io_depth_infos,
     Rays o_rays,
-    PrimOut o_out,
+    HitResults o_out,
     int n_rays
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -94,8 +97,10 @@ CUDA_GLOBAL void bbox_raygen_entry(
 
     // ==== Intersect the primitives ==== //
 
+    Ray ray = Ray{ray_origin, ray_vector};
     StackInfo st = io_stack_infos[i];
-    HitResult hit = bvh_traverse(Ray{ray_origin, ray_vector}, i_dp, st, TraverseMode::CLOSEST_PRIMITIVE, false);
+    DepthInfo depth_info = io_depth_infos[i];
+    HitResult hit = bvh_traverse(ray, i_dp, st, depth_info, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
     o_out.fill(i, hit);
-    o_rays[i] = Ray{ray_origin, ray_end};
+    o_rays[i] = ray;
 }

@@ -17,12 +17,14 @@ using h_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cpu, nb::c_con
 using h_uint_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
 using h_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
 using h_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig>;
+using h_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
 
 using d_float3_batch = nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>;
 using d_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 using d_uint_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 using d_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 using d_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cuda, nb::c_contig>;
+using d_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 
 NB_MODULE(bvh_impl, m) {
     nb::enum_<TreeType>(m, "TreeType")
@@ -86,10 +88,11 @@ NB_MODULE(bvh_impl, m) {
             CPUTraverser& self,
             h_float3_batch& i_ray_origs,
             h_float3_batch& i_ray_vecs,
-            h_uintN_batch& o_bbox_idxs,
             h_bool_batch& o_mask,
             h_float_batch& o_t1,
             h_float_batch& o_t2,
+            h_int_batch& o_depths,
+            h_uintN_batch& o_bbox_idxs,
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -98,10 +101,11 @@ NB_MODULE(bvh_impl, m) {
             bool alive = self.traverse(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
-                o_bbox_idxs.data(),
                 o_mask.data(),
                 o_t1.data(),
                 o_t2.data(),
+                o_depths.data(),
+                o_bbox_idxs.data(),
                 n_rays,
                 tree_type,
                 mode
@@ -127,10 +131,11 @@ NB_MODULE(bvh_impl, m) {
             GPUTraverser& self,
             d_float3_batch& i_ray_origs,
             d_float3_batch& i_ray_vecs,
-            d_uintN_batch& o_bbox_idxs,
             d_bool_batch& o_mask,
             d_float_batch& o_t1,
             d_float_batch& o_t2,
+            d_int_batch& o_depths,
+            d_uintN_batch& o_bbox_idxs,
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -139,10 +144,11 @@ NB_MODULE(bvh_impl, m) {
             bool alive = self.traverse(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
-                o_bbox_idxs.data(),
                 o_mask.data(),
                 o_t1.data(),
                 o_t2.data(),
+                o_depths.data(),
+                o_bbox_idxs.data(),
                 n_rays,
                 tree_type,
                 mode
@@ -155,16 +161,18 @@ NB_MODULE(bvh_impl, m) {
             uint32_t n_rays,
             d_float3_batch& o_ray_origs,
             d_float3_batch& o_ray_vecs,
-            d_uintN_batch& o_bbox_idxs,
             d_bool_batch& o_mask,
-            d_float_batch& o_t
+            d_float_batch& o_t1,
+            d_int_batch& o_depths,
+            d_uintN_batch& o_bbox_idxs
         ) {
             self.bbox_raygen(
                 (glm::vec3 *) o_ray_origs.data(),
                 (glm::vec3 *) o_ray_vecs.data(),
-                o_bbox_idxs.data(),
                 o_mask.data(),
-                o_t.data(),
+                o_t1.data(),
+                o_depths.data(),
+                o_bbox_idxs.data(),
                 n_rays
             );
         })

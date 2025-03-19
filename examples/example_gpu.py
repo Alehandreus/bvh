@@ -56,6 +56,7 @@ d_dirs = torch.from_numpy(dirs).cuda()
 
 # ==== Run BVH ==== #
 
+depths = torch.zeros((cam_poses.shape[0],), dtype=torch.uint32).cuda()
 bbox_idxs = torch.zeros((cam_poses.shape[0], 64), dtype=torch.uint32).cuda()
 mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
 t1 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
@@ -64,7 +65,7 @@ t2 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
 mode = TraverseMode.CLOSEST_PRIMITIVE
 
 if mode != TraverseMode.ANOTHER_BBOX:
-    bvh.traverse(d_cam_poses, d_dirs, bbox_idxs, mask, t1, t2, TreeType.BVH, mode)
+    bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, depths, bbox_idxs, TreeType.BVH, mode)
 else:
     total_mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
     total_t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
@@ -72,10 +73,10 @@ else:
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive = bvh.traverse(d_cam_poses, d_dirs, bbox_idxs, mask, t1, t2, False)
+        alive = bvh.traverse(d_cam_poses, d_dirs, depths, bbox_idxs, bbox_idxs, mask, t1, t2, False)
 
         total_mask = total_mask | mask
-        total_t[mask & (t1 < total_t)] = t1[mask & (t < total_t)]
+        total_t[mask & (t1 < total_t)] = t1[mask & (t1 < total_t)]
 
     mask = total_mask
     t1 = total_t

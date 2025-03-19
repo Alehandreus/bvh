@@ -19,7 +19,7 @@ int main() {
     
     CPUBuilder builder(mesh);
     cout << "Building BVH..." << endl;
-    BVHData bvh_data = builder.build_bvh(15);
+    BVHData bvh_data = builder.build_bvh(5);
     cout << "Depth: " << bvh_data.depth << endl;
     cout << "Number of nodes: " << bvh_data.n_nodes << endl;
     bvh_data.save_as_obj("bvh.obj");

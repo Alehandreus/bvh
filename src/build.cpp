@@ -25,6 +25,34 @@ BVHData CPUBuilder::build_bvh(int max_depth) {
 
     bvh.nodes.resize(bvh.n_nodes);
 
+    // BVHData bvh2;
+    // bvh2.vertices = vertices;
+    // bvh2.faces = faces;
+    // bvh2.nodes.resize(bvh.n_nodes);
+    // bvh2.prim_idxs = bvh.prim_idxs;
+
+    // std::vector<uint32_t> stack(1, 0);
+    // int stack_size = 1;
+    // while (stack_size > 0) {
+    //     uint32_t node_idx = stack[--stack_size];
+    //     BVHNode &node = bvh.nodes[node_idx];
+    //     BVHNode &node2 = bvh2.nodes[node_idx];
+
+    //     if (node.is_leaf()) {
+            
+    //     } else {
+    //         node2.left_first_prim = bvh2.n_nodes;
+    //         node2.n_prims = 0;
+
+    //         stack.push_back(node.left());
+    //         stack.push_back(node.right());
+    //         stack_ptr += 2;
+    //     }
+
+    //     bvh2.n_nodes++;
+    // }
+
+
     return bvh;
 }
 
@@ -63,21 +91,23 @@ void CPUBuilder::split_node(BVHData &bvh, uint32_t node_idx, int cur_depth, int 
     }
 
     int left_idx = bvh.n_nodes++;
-    int right_idx = bvh.n_nodes++;
-
     bvh.nodes[left_idx].left_first_prim = node.left_first_prim;
     bvh.nodes[left_idx].n_prims = leftCount;
     bvh.nodes[left_idx].update_bounds(faces.data(), vertices.data(), bvh.prim_idxs.data());
 
+    split_node(bvh, left_idx, cur_depth + 1, max_depth);
+
+    int right_idx = bvh.n_nodes++;
     bvh.nodes[right_idx].left_first_prim = i;
     bvh.nodes[right_idx].n_prims = node.n_prims - leftCount;
     bvh.nodes[right_idx].update_bounds(faces.data(), vertices.data(), bvh.prim_idxs.data());
 
-    bvh.nodes[node_idx].left_first_prim = left_idx;
+    bvh.nodes[node_idx].left_first_prim = right_idx;
     bvh.nodes[node_idx].n_prims = 0;
 
-    split_node(bvh, left_idx, cur_depth + 1, max_depth);
     split_node(bvh, right_idx, cur_depth + 1, max_depth);
+
+    // std::cout << "Node " << node_idx << " has children " << left_idx << " and " << right_idx << std::endl;
 }
 
 // thanks gpt-o1
@@ -119,7 +149,7 @@ void BVHData::save_as_obj(const std::string &filename) {
         if (nodes[node].is_leaf()) {
             writeCube(nodes[node].bbox.min, nodes[node].bbox.max);
         } else {
-            traverseAndWrite(nodes[node].left());
+            traverseAndWrite(nodes[node].left(node));
             traverseAndWrite(nodes[node].right());
         }        
     };

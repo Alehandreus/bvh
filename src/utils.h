@@ -132,7 +132,7 @@ struct CRays {
     }
 };
 
-struct BboxOut {
+struct HitResults {
     bool *masks;
     float *t1;
     float *t2;
@@ -141,16 +141,6 @@ struct BboxOut {
         masks[i] = hit.hit;
         t1[i] = hit.t1;
         t2[i] = hit.t2;
-    }
-};
-
-struct PrimOut {
-    bool *masks;
-    float *t;
-
-    CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
-        masks[i] = hit.hit;
-        t[i] = hit.t;
     }
 };
 

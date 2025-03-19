@@ -20,12 +20,12 @@ struct BVHNode {
         return is_leaf() || is_nbvh_leaf_;
     }
 
-    CUDA_HOST_DEVICE inline uint32_t left() const {
-        return left_first_prim;
+    CUDA_HOST_DEVICE inline uint32_t left(uint32_t cur_idx) const {
+        return cur_idx + 1;
     }
 
     CUDA_HOST_DEVICE inline uint32_t right() const {
-        return left_first_prim + 1;
+        return left_first_prim;
     }
 
     CUDA_HOST_DEVICE bool inside(glm::vec3 point) const {

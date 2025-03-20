@@ -33,6 +33,11 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
             
             /* ==== intersect primitives in node ==== */
             else if (mode == TraverseMode::CLOSEST_PRIMITIVE) {
+                HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox);
+                if (bbox_hit.t1 > closest_hit.t) {
+                    continue;
+                }
+
                 HitResult node_hit = {false, FLT_MAX};
                 for (int prim_i = node.left_first_prim; prim_i < node.left_first_prim + node.n_prims; prim_i++) {
                     uint32_t face_idx = i_dp.prim_idxs[prim_i];

@@ -27,21 +27,15 @@ struct BVHDataPointers {
 struct StackInfo {
     int &cur_stack_size;
     uint32_t *node_stack;
-    int *depth_stack;
 };
 
 struct StackInfos {
     int stack_limit;
     int *cur_stack_sizes;
     uint32_t *node_stacks;
-    int *depth_stacks;
 
     CUDA_HOST_DEVICE StackInfo operator[](int i) {
-        return {
-            cur_stack_sizes[i],
-            node_stacks + i * stack_limit,
-            depth_stacks + i * stack_limit
-        };
+        return {cur_stack_sizes[i], node_stacks + i * stack_limit};
     }
 };
 
@@ -56,10 +50,7 @@ struct DepthInfos {
     uint32_t *bbox_idxs;
 
     CUDA_HOST_DEVICE DepthInfo operator[](int i) {
-        return {
-            cur_depths[i],
-            bbox_idxs + i * depth_limit
-        };
+        return {cur_depths[i], bbox_idxs + i * depth_limit};
     }
 };
 
@@ -73,7 +64,6 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
     const Ray &ray,
     const BVHDataPointers &dp,
     StackInfo &st,
-    DepthInfo &di,
     TraverseMode mode,
     TreeType tree_type
 );
@@ -117,13 +107,9 @@ struct CPUTraverser {
         std::vector<int> smol_depth_stack(stack_limit, 0);
         int smol_stack_size = 1;
 
-        std::vector<uint32_t> smol_bbox_idxs(bvh.depth, 0);
-        int smol_depth = 0;
+        StackInfo stack_info = {smol_stack_size, smol_node_stack.data()};
 
-        StackInfo stack_info = {smol_stack_size, smol_node_stack.data(), smol_depth_stack.data()};
-        DepthInfo depth_info = {smol_depth, smol_bbox_idxs.data()};
-
-        return bvh_traverse(ray, get_data_pointers(), stack_info, depth_info, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
+        return bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
     }
 
     bool traverse(
@@ -132,8 +118,7 @@ struct CPUTraverser {
         bool *o_masks,
         float *o_t1,
         float *o_t2,
-        int *io_depths,
-        uint32_t *io_bbox_idxs,
+        uint32_t *o_node_idx,
         int n_rays,
         TreeType tree_type,
         TraverseMode traverse_mode
@@ -151,13 +136,13 @@ struct CPUTraverser {
         for (int i = 0; i < n_rays; i++) {
             Ray ray = rays[i];
             StackInfo stack_info = stack_infos[i];
-            DepthInfo depth_info = {io_depths[i], io_bbox_idxs + i * bvh.depth};
 
-            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, depth_info, traverse_mode, TreeType::BVH);
+            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, traverse_mode, TreeType::BVH);
             o_masks[i] = hit.hit;
             if (hit.hit) {
                 o_t1[i] = hit.t1;
                 o_t2[i] = hit.t2;
+                o_node_idx[i] = hit.node_idx;
             }
 
             alive = alive || hit.hit;

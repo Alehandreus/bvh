@@ -91,8 +91,7 @@ NB_MODULE(bvh_impl, m) {
             h_bool_batch& o_mask,
             h_float_batch& o_t1,
             h_float_batch& o_t2,
-            h_int_batch& o_depths,
-            h_uintN_batch& o_bbox_idxs,
+            h_uint_batch& o_node_idx,
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -104,8 +103,7 @@ NB_MODULE(bvh_impl, m) {
                 o_mask.data(),
                 o_t1.data(),
                 o_t2.data(),
-                o_depths.data(),
-                o_bbox_idxs.data(),
+                o_node_idx.data(),
                 n_rays,
                 tree_type,
                 mode
@@ -134,8 +132,7 @@ NB_MODULE(bvh_impl, m) {
             d_bool_batch& o_mask,
             d_float_batch& o_t1,
             d_float_batch& o_t2,
-            d_int_batch& o_depths,
-            d_uintN_batch& o_bbox_idxs,
+            d_uint_batch& o_node_idx,
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -147,8 +144,7 @@ NB_MODULE(bvh_impl, m) {
                 o_mask.data(),
                 o_t1.data(),
                 o_t2.data(),
-                o_depths.data(),
-                o_bbox_idxs.data(),
+                o_node_idx.data(),
                 n_rays,
                 tree_type,
                 mode
@@ -163,16 +159,31 @@ NB_MODULE(bvh_impl, m) {
             d_float3_batch& o_ray_vecs,
             d_bool_batch& o_mask,
             d_float_batch& o_t1,
-            d_int_batch& o_depths,
-            d_uintN_batch& o_bbox_idxs
+            d_uint_batch& o_node_idx
         ) {
             self.bbox_raygen(
                 (glm::vec3 *) o_ray_origs.data(),
                 (glm::vec3 *) o_ray_vecs.data(),
                 o_mask.data(),
                 o_t1.data(),
+                o_node_idx.data(),
+                n_rays
+            );
+        })
+        .def("fill_history", [](
+            GPUTraverser& self,
+            d_bool_batch& i_masks,
+            d_uint_batch& i_node_idxs,
+            d_int_batch& o_depths,
+            d_uintN_batch& o_history
+        ) {
+            uint32_t n_rays = i_node_idxs.shape(0);
+
+            self.fill_history(
+                i_masks.data(),
+                i_node_idxs.data(),
                 o_depths.data(),
-                o_bbox_idxs.data(),
+                o_history.data(),
                 n_rays
             );
         })

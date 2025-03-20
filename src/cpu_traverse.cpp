@@ -6,17 +6,13 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
     const Ray &i_ray,
     const BVHDataPointers &i_dp,
     StackInfo &io_st,
-    DepthInfo &io_di,
     TraverseMode mode,
     TreeType tree_type
 ) {
     HitResult closest_hit = {false, FLT_MAX, 0};
 
     while (io_st.cur_stack_size > 0) {
-        --io_st.cur_stack_size;
-        uint32_t node_idx = io_st.node_stack[io_st.cur_stack_size];
-        // int depth = io_st.depth_stack[io_st.cur_stack_size];
-        // io_di.bbox_idxs[depth] = node_idx;
+        uint32_t node_idx = io_st.node_stack[--io_st.cur_stack_size];
 
         bool is_leaf = i_dp.nodes[node_idx].is_leaf(); 
         if (tree_type == TreeType::NBVH) {
@@ -49,6 +45,8 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
                     }
                 }
 
+                node_hit.node_idx = node_idx;
+
                 if (node_hit.hit && node_hit.t < closest_hit.t) {
                     closest_hit = node_hit;
                 }
@@ -73,15 +71,11 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
             HitResult right_hit = ray_box_intersection(i_ray, i_dp.nodes[right].bbox);
 
             if (left_hit.hit) {
-                // io_st.depth_stack[io_st.cur_stack_size] = depth + 1;
-                io_st.node_stack[io_st.cur_stack_size] = left;
-                ++io_st.cur_stack_size;
+                io_st.node_stack[io_st.cur_stack_size++] = left;
             }
 
             if (right_hit.hit) {
-                // io_st.depth_stack[io_st.cur_stack_size] = depth + 1;
-                io_st.node_stack[io_st.cur_stack_size] = right;
-                ++io_st.cur_stack_size;
+                io_st.node_stack[io_st.cur_stack_size++] = right;
             }
         }
     }

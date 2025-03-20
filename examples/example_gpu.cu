@@ -1,5 +1,6 @@
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include <random>
 
 #include "../src/gpu_traverse.cuh"
 
@@ -75,7 +76,6 @@ int main() {
     }
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
 
-    thrust::device_vector<int> depths(n_rays);
     thrust::device_vector<uint32_t> bbox_idxs(n_rays * 64);
     thrust::device_vector<glm::vec3> ray_origins_d = ray_origins;
     thrust::device_vector<glm::vec3> ray_vectors_d = ray_vectors;
@@ -96,7 +96,6 @@ int main() {
         masks_d.data().get(),
         t1_d.data().get(),
         t2_d.data().get(),
-        depths.data().get(),
         bbox_idxs.data().get(),
         n_rays,
         TreeType::BVH,

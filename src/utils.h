@@ -85,15 +85,14 @@ struct HitResult {
     // float t;
     // float t1;
     // float t2;
-    // uint32_t node_idx;
     union {
         float t;
         struct {
             float t1;
             float t2;
-            uint32_t node_idx;
         };
     };
+    uint32_t node_idx;
 
     CUDA_HOST_DEVICE HitResult() : hit(false), t(0) {}
 
@@ -121,14 +120,10 @@ struct Rays {
     CUDA_HOST_DEVICE Ray operator[](int i) const {
         return {origs[i], vecs[i]};
     }
-};
 
-struct CRays {
-    const glm::vec3 *origs;
-    const glm::vec3 *vecs;
-
-    CUDA_HOST_DEVICE Ray operator[](int i) const {
-        return {origs[i], vecs[i]};
+    CUDA_HOST_DEVICE void fill(int i, const Ray &ray) {
+        origs[i] = ray.origin;
+        vecs[i] = ray.vector;
     }
 };
 
@@ -136,11 +131,13 @@ struct HitResults {
     bool *masks;
     float *t1;
     float *t2;
+    uint32_t *node_idxs;
 
     CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
         masks[i] = hit.hit;
         t1[i] = hit.t1;
-        t2[i] = hit.t2;
+        if (t2) t2[i] = hit.t2;        
+        node_idxs[i] = hit.node_idx;
     }
 };
 

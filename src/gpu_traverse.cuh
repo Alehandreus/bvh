@@ -16,8 +16,7 @@ CUDA_GLOBAL void traverse_entry(
     const Rays i_rays,
     const BVHDataPointers i_dp,
     StackInfos io_stack_infos,
-    HitResults o_out,
-    DepthInfos io_depth_infos,
+    HitResults o_hits,
     int n_rays,
     TreeType tree_type,
     TraverseMode traverse_mode,
@@ -30,9 +29,16 @@ CUDA_GLOBAL void bbox_raygen_entry(
     curandState *io_rand_states,
     uint32_t *i_leaf_idxs,
     int n_leaves,
-    DepthInfos io_depth_infos,
     Rays o_rays,
-    HitResults o_out,
+    HitResults o_hits,
+    int n_rays
+);
+
+CUDA_GLOBAL void fill_history_entry(
+    bool *i_masks,
+    uint32_t *i_node_idxs,
+    const BVHDataPointers i_dp,
+    DepthInfos o_di,
     int n_rays
 );
 
@@ -117,7 +123,7 @@ struct GPUTraverser {
     }
 
     StackInfos get_stack_infos() {
-        return {stack_limit, cur_stack_sizes.data().get(), node_stack.data().get(), depth_stack.data().get()};
+        return {stack_limit, cur_stack_sizes.data().get(), node_stack.data().get()};
     }
 
     BVHDataPointers get_data_pointers() const {
@@ -135,15 +141,13 @@ struct GPUTraverser {
         glm::vec3 *o_ray_ends,
         bool *o_masks,
         float *o_t1,
-        int *o_depths,
-        uint32_t *o_bbox_idxs,
+        uint32_t *o_node_idxs,
         int n_rays
     ) {
         reset_stack(n_rays);
 
         Rays rays = {o_ray_origs, o_ray_ends};
-        HitResults prim_out = {o_masks, o_t1};
-        DepthInfos depth_infos = {stack_limit, o_depths, o_bbox_idxs};
+        HitResults o_hits = {o_masks, o_t1, nullptr, o_node_idxs};
 
         bbox_raygen_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             get_data_pointers(),
@@ -151,9 +155,8 @@ struct GPUTraverser {
             rand_states.data().get(),
             nbvh_leaf_idxs.data().get(),
             n_nbvh_leaves,
-            depth_infos,
             rays,
-            prim_out,
+            o_hits,
             n_rays
         );
     }
@@ -164,8 +167,7 @@ struct GPUTraverser {
         bool *o_masks,
         float *o_t1,
         float *o_t2,
-        int *o_depths,
-        uint32_t *io_bbox_idxs,
+        uint32_t *o_bbox_idxs,
         int n_rays,
         TreeType tree_type,
         TraverseMode traverse_mode
@@ -181,15 +183,13 @@ struct GPUTraverser {
         }
 
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults bbox_out = {o_masks, o_t1, o_t2};
-        DepthInfos depth_infos = {stack_limit, o_depths, io_bbox_idxs};
+        HitResults hits = {o_masks, o_t1, o_t2, o_bbox_idxs};
 
         traverse_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             rays,
             get_data_pointers(),
             get_stack_infos(),
-            bbox_out,
-            depth_infos,
+            hits,
             n_rays,
             tree_type,
             traverse_mode,
@@ -204,5 +204,23 @@ struct GPUTraverser {
         }
 
         return false;
+    }
+
+    void fill_history(
+        bool *i_masks,
+        uint32_t *i_node_idxs,
+        int *o_depths,
+        uint32_t *o_history,
+        int n_rays
+    ) {
+        DepthInfos di = {64, o_depths, o_history};
+
+        fill_history_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
+            i_masks,
+            i_node_idxs,
+            get_data_pointers(),
+            di,
+            n_rays
+        );
     }
 };

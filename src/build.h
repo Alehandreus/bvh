@@ -11,6 +11,7 @@ struct BVHNode {
     uint32_t left_first_prim;
     uint32_t n_prims : 31;
     uint32_t is_nbvh_leaf_ : 1;
+    uint32_t father;
 
     CUDA_HOST_DEVICE inline bool is_leaf() const {
         return n_prims > 0;

@@ -13,15 +13,14 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 
     while (io_st.cur_stack_size > 0) {
         uint32_t node_idx = io_st.node_stack[--io_st.cur_stack_size];
+        const BVHNode &node = i_dp.nodes[node_idx];
 
-        bool is_leaf = i_dp.nodes[node_idx].is_leaf(); 
+        bool is_leaf = node.is_leaf(); 
         if (tree_type == TreeType::NBVH) {
-            is_leaf |= i_dp.nodes[node_idx].is_nbvh_leaf();
+            is_leaf |= node.is_nbvh_leaf();
         }
 
         if (is_leaf) {
-            const BVHNode &node = i_dp.nodes[node_idx];
-
             /* ==== intersect only node bbox ==== */
             if (mode == TraverseMode::ANOTHER_BBOX) {
                 HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox);
@@ -30,7 +29,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
                     return bbox_hit;
                 }
             }
-            
+
             /* ==== intersect primitives in node ==== */
             else if (mode == TraverseMode::CLOSEST_PRIMITIVE) {
                 HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox);
@@ -40,8 +39,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 
                 HitResult node_hit = {false, FLT_MAX};
                 for (int prim_i = node.left_first_prim; prim_i < node.left_first_prim + node.n_prims; prim_i++) {
-                    uint32_t face_idx = i_dp.prim_idxs[prim_i];
-                    const Face &face = i_dp.faces[face_idx];
+                    const Face &face = i_dp.faces[prim_i];
 
                     HitResult prim_hit = ray_triangle_intersection(i_ray, face, i_dp.vertices);
 
@@ -69,16 +67,14 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 
         /* ==== non-leaf case ==== */
         else {
-            uint32_t left = i_dp.nodes[node_idx].left(node_idx);
-            uint32_t right = i_dp.nodes[node_idx].right();
-
+            uint32_t left = node.left(node_idx);
             HitResult left_hit = ray_box_intersection(i_ray, i_dp.nodes[left].bbox);
-            HitResult right_hit = ray_box_intersection(i_ray, i_dp.nodes[right].bbox);
-
             if (left_hit.hit) {
                 io_st.node_stack[io_st.cur_stack_size++] = left;
             }
 
+            uint32_t right = node.right();
+            HitResult right_hit = ray_box_intersection(i_ray, i_dp.nodes[right].bbox);
             if (right_hit.hit) {
                 io_st.node_stack[io_st.cur_stack_size++] = right;
             }

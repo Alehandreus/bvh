@@ -37,10 +37,6 @@ struct Mesh {
                 }
             }
         }
-
-        for (int i = 0; i < faces.size(); i++) {
-            faces[i].calc_centroid(vertices.data());
-        }
     }
 
     void split_faces(float frac) {
@@ -80,10 +76,6 @@ struct Mesh {
             } else {
                 face_i++;
             }
-        }
-
-        for (int i = 0; i < faces.size(); i++) {
-            faces[i].calc_centroid(vertices.data());
         }
     }
 

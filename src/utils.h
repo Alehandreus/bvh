@@ -27,12 +27,13 @@ uint32_t size(const std::vector<T> &v) {
 
 struct Face {
     uint32_t v1, v2, v3;
-    glm::vec3 centroid;
+
+    Face() {}
 
     Face(uint32_t v1, uint32_t v2, uint32_t v3) : v1(v1), v2(v2), v3(v3) {}
 
-    void calc_centroid(const glm::vec3 *vertices) {
-        centroid = (vertices[v1] + vertices[v2] + vertices[v3]) / 3.0f;
+    glm::vec3 get_centroid(const glm::vec3 *vertices) {
+        return (vertices[v1] + vertices[v2] + vertices[v3]) / 3.0f;
     }
 
     float extent(const glm::vec3 *vertices) const {

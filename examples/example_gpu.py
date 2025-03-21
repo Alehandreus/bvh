@@ -15,7 +15,7 @@ builder = CPUBuilder(mesh)
 bvh_data = builder.build_bvh(5)
 bvh = GPUTraverser(bvh_data)
 
-img_size = 8
+img_size = 800
 n_pixels = img_size * img_size
 
 

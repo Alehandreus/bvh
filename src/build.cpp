@@ -25,6 +25,13 @@ BVHData CPUBuilder::build_bvh(int max_depth) {
 
     bvh.nodes.resize(bvh.n_nodes);
 
+    // rearrange primitives according to prim_idxs
+    std::vector<Face> new_faces(n_faces);
+    for (int i = 0; i < n_faces; i++) {
+        new_faces[i] = faces[bvh.prim_idxs[i]];
+    }
+    bvh.faces = new_faces;
+
     return bvh;
 }
 
@@ -49,7 +56,7 @@ void CPUBuilder::split_node(BVHData &bvh, uint32_t node_idx, int cur_depth, int 
     int i = node.left_first_prim;
     int j = i + node.n_prims - 1;
     while (i <= j) {
-        if (faces[bvh.prim_idxs[i]].centroid[axis] < splitPos) {
+        if (faces[bvh.prim_idxs[i]].get_centroid(bvh.vertices.data())[axis] < splitPos) {
             i++;
         } else {
             std::swap(bvh.prim_idxs[i], bvh.prim_idxs[j--]);

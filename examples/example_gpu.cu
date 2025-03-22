@@ -76,7 +76,7 @@ int main() {
     }
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
 
-    thrust::device_vector<uint32_t> bbox_idxs(n_rays * 64);
+    thrust::device_vector<uint32_t> bbox_idxs_d(n_rays);
     thrust::device_vector<glm::vec3> ray_origins_d = ray_origins;
     thrust::device_vector<glm::vec3> ray_vectors_d = ray_vectors;
     thrust::device_vector<bool> masks_d = masks;
@@ -96,13 +96,14 @@ int main() {
         masks_d.data().get(),
         t1_d.data().get(),
         t2_d.data().get(),
-        bbox_idxs.data().get(),
+        bbox_idxs_d.data().get(),
         n_rays,
         TreeType::BVH,
         TraverseMode::CLOSEST_PRIMITIVE
     );
-    masks = masks_d;
+    cudaDeviceSynchronize();
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
+    masks = masks_d;
     t = t1_d;
 
     cout << endl;

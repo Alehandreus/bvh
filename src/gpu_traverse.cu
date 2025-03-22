@@ -69,9 +69,9 @@ CUDA_GLOBAL void bbox_raygen_entry(
     glm::vec3 center = (max + min) * 0.5f;
 
     glm::vec3 p1 = glm::vec3(
-        curand_uniform(state),
-        curand_uniform(state), 
-        curand_uniform(state)
+        curand_uniform(state) * 0.98 + 0.01,
+        curand_uniform(state) * 0.98 + 0.01, 
+        curand_uniform(state) * 0.98 + 0.01
     ) * extent + min;
 
     glm::vec3 p2p1 = glm::normalize(glm::vec3(
@@ -81,11 +81,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     ));
 
     HitResult hit = ray_box_intersection(Ray{p1, p2p1}, leaf.bbox);
-    if (!hit.hit) {
-        o_rays.fill(i, Ray{p1 * 0.f, p1 * 0.f});
-        o_hits.fill(i, hit);
-        return;
-    }
+    assert(hit.hit);
     
     glm::vec3 ray_origin = p1 + hit.t1 * p2p1;
     glm::vec3 ray_end = p1 + hit.t2 * p2p1;

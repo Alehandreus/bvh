@@ -100,7 +100,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     hit = bvh_traverse(ray, i_dp, st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
     hit.node_idx = leaf_idx;
     o_hits.fill(i, hit);
-    o_rays.fill(i, ray);
+    o_rays.fill(i, {ray_origin, ray_end});
 }
 
 CUDA_GLOBAL void fill_history_entry(

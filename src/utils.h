@@ -19,6 +19,20 @@ struct Ray {
     CUDA_HOST_DEVICE Ray(const glm::vec3 &origin, const glm::vec3 &vector) : origin(origin), vector(vector) {}
 };
 
+struct Rays {
+    glm::vec3 *origs;
+    glm::vec3 *vecs;
+
+    CUDA_HOST_DEVICE Ray operator[](int i) const {
+        return {origs[i], vecs[i]};
+    }
+
+    CUDA_HOST_DEVICE void fill(int i, const Ray &ray) {
+        origs[i] = ray.origin;
+        vecs[i] = ray.vector;
+    }
+};
+
 // size_t to uint32_t causes narrowing conversion warning
 template <typename T>
 uint32_t size(const std::vector<T> &v) {
@@ -79,6 +93,11 @@ struct BBox {
     CUDA_HOST_DEVICE glm::vec3 diagonal() const {
         return max - min;
     }
+
+    float area() const {
+        glm::vec3 d = diagonal();
+        return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
+    }
 };
 
 struct HitResult {
@@ -94,6 +113,8 @@ struct HitResult {
         };
     };
     uint32_t node_idx;
+    uint32_t prim_idx;
+    glm::vec3 normal;
 
     CUDA_HOST_DEVICE HitResult() : hit(false), t(0) {}
 
@@ -102,45 +123,37 @@ struct HitResult {
     CUDA_HOST_DEVICE HitResult(bool hit, float t1, float t2) : hit(hit), t1(t1), t2(t2) {}
 };
 
-CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
-    const Ray &ray,
-    const Face& face,
-    const glm::vec3 *vertices
-);
-
-
-CUDA_HOST_DEVICE HitResult ray_box_intersection(
-    const Ray &ray,
-    const BBox &bbox
-);
-
-struct Rays {
-    glm::vec3 *origs;
-    glm::vec3 *vecs;
-
-    CUDA_HOST_DEVICE Ray operator[](int i) const {
-        return {origs[i], vecs[i]};
-    }
-
-    CUDA_HOST_DEVICE void fill(int i, const Ray &ray) {
-        origs[i] = ray.origin;
-        vecs[i] = ray.vector;
-    }
-};
-
 struct HitResults {
     bool *masks;
     float *t1;
     float *t2;
     uint32_t *node_idxs;
+    glm::vec3 *normals;
 
     CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
         masks[i] = hit.hit;
         t1[i] = hit.t1;
         if (t2) t2[i] = hit.t2;        
         node_idxs[i] = hit.node_idx;
+        if (normals) normals[i] = hit.normal;
     }
 };
+
+CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
+    const Ray &ray,
+    const Face& face,
+    const glm::vec3 *vertices
+);
+
+CUDA_HOST_DEVICE glm::vec3 ray_triangle_norm(
+    const Face &face,
+    const glm::vec3 *vertices
+);
+
+CUDA_HOST_DEVICE HitResult ray_box_intersection(
+    const Ray &ray,
+    const BBox &bbox
+);
 
 int timer(bool start);
 void timer_start();

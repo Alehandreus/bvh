@@ -44,13 +44,13 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
                     HitResult prim_hit = ray_triangle_intersection(i_ray, face, i_dp.vertices);
 
                     if (prim_hit.hit && prim_hit.t < node_hit.t) {
+                        prim_hit.prim_idx = prim_i;
                         node_hit = prim_hit;
                     }
                 }
 
-                node_hit.node_idx = node_idx;
-
                 if (node_hit.hit && node_hit.t < closest_hit.t) {
+                    node_hit.node_idx = node_idx;
                     closest_hit = node_hit;
                 }
             }
@@ -91,6 +91,8 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 
     if (!closest_hit.hit) {
         closest_hit.t = 0;
+    } else if (mode == TraverseMode::CLOSEST_PRIMITIVE) {
+        closest_hit.normal = ray_triangle_norm(i_dp.faces[closest_hit.prim_idx], i_dp.vertices);
     }
 
     return closest_hit;

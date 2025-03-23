@@ -10,5 +10,3 @@
   #define CUDA_HOST_DEVICE
   #define CUDA_GLOBAL
 #endif
-
-#define CUDA_ENABLED

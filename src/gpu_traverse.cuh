@@ -142,12 +142,13 @@ struct GPUTraverser {
         bool *o_masks,
         float *o_t1,
         uint32_t *o_node_idxs,
+        glm::vec3 *o_normals,
         int n_rays
     ) {
         reset_stack(n_rays);
 
         Rays rays = {o_ray_origs, o_ray_ends};
-        HitResults o_hits = {o_masks, o_t1, nullptr, o_node_idxs};
+        HitResults o_hits = {o_masks, o_t1, nullptr, o_node_idxs, o_normals};
 
         bbox_raygen_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             get_data_pointers(),
@@ -168,6 +169,7 @@ struct GPUTraverser {
         float *o_t1,
         float *o_t2,
         uint32_t *o_bbox_idxs,
+        glm::vec3 *o_normals,
         int n_rays,
         TreeType tree_type,
         TraverseMode traverse_mode
@@ -183,7 +185,12 @@ struct GPUTraverser {
         }
 
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults hits = {o_masks, o_t1, o_t2, o_bbox_idxs};
+        HitResults hits = {o_masks, o_t1, o_t2, o_bbox_idxs, o_normals};
+        if (traverse_mode == TraverseMode::CLOSEST_PRIMITIVE) {
+            hits.t2 = nullptr;
+        } else {
+            hits.normals = nullptr;
+        }
 
         traverse_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             rays,

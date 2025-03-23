@@ -45,12 +45,24 @@ CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
 
     // At this stage we can compute t to find out where the intersection point is on the line.
     float t = inv_det * glm::dot(edge2, s_cross_e1);
-    if (t > epsilon) { // ray intersection
-        return { true, t };
+    if (t < epsilon) {
+        return { false, 0 };
     }
 
-    // This means that there is a line intersection but not a ray intersection.
-    return { false, 0 };
+    return { true, t };
+}
+
+CUDA_HOST_DEVICE glm::vec3 ray_triangle_norm(
+    const Face &face,
+    const glm::vec3 *vertices
+) {
+    glm::vec3 n = glm::cross(
+        vertices[face.v2] - vertices[face.v1],
+        vertices[face.v3] - vertices[face.v1]
+    );
+    n = glm::normalize(n);
+
+    return n;
 }
 
 CUDA_HOST_DEVICE HitResult ray_box_intersection(
@@ -70,7 +82,7 @@ CUDA_HOST_DEVICE HitResult ray_box_intersection(
         return {false, 0, 0};
     }
 
-    return {true, t_enter, t_exit};
+    return { true, t_enter, t_exit };
 }
 
 // thanks copilot

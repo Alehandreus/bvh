@@ -92,6 +92,7 @@ NB_MODULE(bvh_impl, m) {
             h_float_batch& o_t1,
             h_float_batch& o_t2,
             h_uint_batch& o_node_idx,
+            h_float3_batch& o_normals,
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -104,6 +105,7 @@ NB_MODULE(bvh_impl, m) {
                 o_t1.data(),
                 o_t2.data(),
                 o_node_idx.data(),
+                (glm::vec3 *) o_normals.data(),
                 n_rays,
                 tree_type,
                 mode
@@ -133,6 +135,7 @@ NB_MODULE(bvh_impl, m) {
             d_float_batch& o_t1,
             d_float_batch& o_t2,
             d_uint_batch& o_node_idx,
+            d_float3_batch& o_normals,
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -145,6 +148,7 @@ NB_MODULE(bvh_impl, m) {
                 o_t1.data(),
                 o_t2.data(),
                 o_node_idx.data(),
+                (glm::vec3 *) o_normals.data(),
                 n_rays,
                 tree_type,
                 mode
@@ -159,7 +163,8 @@ NB_MODULE(bvh_impl, m) {
             d_float3_batch& o_ray_vecs,
             d_bool_batch& o_mask,
             d_float_batch& o_t1,
-            d_uint_batch& o_node_idx
+            d_uint_batch& o_node_idx,
+            d_float3_batch& o_normals
         ) {
             self.bbox_raygen(
                 (glm::vec3 *) o_ray_origs.data(),
@@ -167,6 +172,7 @@ NB_MODULE(bvh_impl, m) {
                 o_mask.data(),
                 o_t1.data(),
                 o_node_idx.data(),
+                (glm::vec3 *) o_normals.data(),
                 n_rays
             );
         })

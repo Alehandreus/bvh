@@ -95,6 +95,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     st.node_stack[0] = leaf_idx;
     hit = bvh_traverse(ray, i_dp, st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
     hit.node_idx = leaf_idx;
+    hit.normal = ray_triangle_norm(i_dp.faces[hit.prim_idx], i_dp.vertices);
     o_hits.fill(i, hit);
     o_rays.fill(i, {ray_origin, ray_end});
 }

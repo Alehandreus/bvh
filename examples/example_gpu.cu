@@ -23,8 +23,9 @@ int main() {
     
     CPUBuilder builder(mesh);
     cout << "Building BVH..." << endl;
+    timer_start();
     BVHData bvh_data = builder.build_bvh(35);
-    cout << "Depth: " << bvh_data.depth << endl;
+    cout << "Elapsed time: " << timer_stop() << " ms" << endl;
     cout << "Number of nodes: " << bvh_data.n_nodes << endl;
     bvh_data.save_as_obj("bvh.obj");
     GPUTraverser bvh(bvh_data);
@@ -45,6 +46,7 @@ int main() {
     glm::vec3 cam_dir = (center - cam_pos) * 0.9f;
     glm::vec3 x_dir = glm::normalize(glm::cross(cam_dir, glm::vec3(0, 0, 1))) * (max_extent / 2);
     glm::vec3 y_dir = -glm::normalize(glm::cross(x_dir, cam_dir)) * (max_extent / 2);
+    glm::vec3 light_dir = glm::normalize(glm::vec3(1, -1, 1));
 
     int img_size = 800;
     int n_rays = img_size * img_size;
@@ -57,6 +59,7 @@ int main() {
     thrust::host_vector<glm::vec3> ray_vectors(n_rays);
     thrust::host_vector<bool> masks(n_rays);
     thrust::host_vector<float> t(n_rays);
+    thrust::host_vector<glm::vec3> normals(n_rays);
 
     cout << "Generating rays..." << endl;
     timer_start();
@@ -82,6 +85,7 @@ int main() {
     thrust::device_vector<bool> masks_d = masks;
     thrust::device_vector<float> t1_d = t;
     thrust::device_vector<float> t2_d = t;
+    thrust::device_vector<glm::vec3> normals_d(n_rays);
 
     cout << endl;
 
@@ -97,12 +101,15 @@ int main() {
         t1_d.data().get(),
         t2_d.data().get(),
         bbox_idxs_d.data().get(),
+        normals_d.data().get(),
         n_rays,
         TreeType::BVH,
         TraverseMode::CLOSEST_PRIMITIVE
     );
     cudaDeviceSynchronize();
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
+
+    normals = normals_d;
     masks = masks_d;
     t = t1_d;
 
@@ -114,11 +121,11 @@ int main() {
     cout << "Saving image..." << endl;
     std::vector<unsigned int> pixels(n_pixels);
     for (int i = 0; i < n_pixels; i++) {
-        float val = 0;
+        float color = 0;
         if (masks[i]) {
-            val = std::sin(t[i] * glm::length(cam_dir) * 2) * 0.3f + 0.5f;
+            color = glm::dot(light_dir, normals[i]) * 0.5f + 0.5f;
         }
-        pixels[i] = (255 << 24) | ((int)(val * 255) << 16) | ((int)(val * 255) << 8) | (int)(val * 255);
+        pixels[i] = (255 << 24) | ((int)(color * 255) << 16) | ((int)(color * 255) << 8) | (int)(color * 255);
     }
     save_to_bmp(pixels.data(), img_size, img_size, "output.bmp");
 

@@ -19,7 +19,9 @@ int main() {
     
     CPUBuilder builder(mesh);
     cout << "Building BVH..." << endl;
+    timer_start();
     BVHData bvh_data = builder.build_bvh(5);
+    cout << "Elapsed time: " << timer_stop() << " ms" << endl;
     cout << "Depth: " << bvh_data.depth << endl;
     cout << "Number of nodes: " << bvh_data.n_nodes << endl;
     bvh_data.save_as_obj("bvh.obj");
@@ -41,17 +43,16 @@ int main() {
     glm::vec3 cam_dir = (center - cam_pos) * 0.9f;
     glm::vec3 x_dir = glm::normalize(glm::cross(cam_dir, glm::vec3(0, 0, 1))) * (max_extent / 2);
     glm::vec3 y_dir = -glm::normalize(glm::cross(x_dir, cam_dir)) * (max_extent / 2);
-
     int img_size = 800;
-
     std::vector<glm::vec3> img(img_size * img_size, glm::vec3(0));
+    glm::vec3 light_dir = glm::normalize(glm::vec3(1, -1, 1));
 
 
     /* ==== Rendering image ==== */
 
     cout << "Rendering image..." << endl;
     timer_start();
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int y = 0; y < img_size; y++) {
         for (int x = 0; x < img_size; x++) {
             float x_f = ((float)x / img_size - 0.5f) * 2;
@@ -61,8 +62,8 @@ int main() {
             HitResult hit = bvh.closest_primitive_single({cam_pos, dir});
 
             if (hit.hit) {
-                float val = std::sin(hit.t * glm::length(cam_dir) * 2) * 0.3f + 0.5f;
-                img[y * img_size + x] = { val, val, val };
+                float color = glm::dot(light_dir, hit.normal) * 0.5 + 0.5;
+                img[y * img_size + x] = { color, color, color };
             }
         }
     }

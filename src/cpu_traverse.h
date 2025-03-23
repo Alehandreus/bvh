@@ -119,6 +119,7 @@ struct CPUTraverser {
         float *o_t1,
         float *o_t2,
         uint32_t *o_node_idx,
+        glm::vec3 *o_normals,
         int n_rays,
         TreeType tree_type,
         TraverseMode traverse_mode
@@ -131,6 +132,12 @@ struct CPUTraverser {
 
         Rays rays = {i_ray_origs, i_ray_vecs};
         StackInfos stack_infos = get_stack_infos();
+        HitResults hits = {o_masks, o_t1, o_t2, o_node_idx, o_normals};
+        if (traverse_mode == TraverseMode::CLOSEST_PRIMITIVE) {
+            hits.t2 = nullptr;
+        } else {
+            hits.normals = nullptr;
+        }
 
         #pragma omp parallel for reduction(||: alive)
         for (int i = 0; i < n_rays; i++) {
@@ -140,9 +147,7 @@ struct CPUTraverser {
             HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, traverse_mode, TreeType::BVH);
             o_masks[i] = hit.hit;
             if (hit.hit) {
-                o_t1[i] = hit.t1;
-                o_t2[i] = hit.t2;
-                o_node_idx[i] = hit.node_idx;
+                hits.fill(i, hit);
             }
 
             alive = alive || hit.hit;

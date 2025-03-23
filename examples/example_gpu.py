@@ -62,11 +62,12 @@ history = torch.zeros((cam_poses.shape[0], 64), dtype=torch.uint32).cuda()
 mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
 t1 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
 t2 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
+normals = torch.zeros((cam_poses.shape[0], 3), dtype=torch.float32).cuda()
 
 mode = TraverseMode.CLOSEST_PRIMITIVE
 
 if mode != TraverseMode.ANOTHER_BBOX:
-    bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, TreeType.BVH, mode)
+    bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, normals, TreeType.BVH, mode)
 else:
     total_mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
     total_t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
@@ -74,7 +75,7 @@ else:
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive = bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, False)
+        alive = bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, normals, False)
 
         total_mask = total_mask | mask
         total_t[mask & (t1 < total_t)] = t1[mask & (t1 < total_t)]
@@ -88,15 +89,25 @@ else:
 
 mask_img = mask.reshape(img_size, img_size)
 mask_img = mask_img.cpu().numpy()
-t = t1.cpu().numpy()
+normals = normals.cpu().numpy()
+t1 = t1.cpu().numpy()
 
-image = np.zeros((img_size, img_size, 3))
+if mode != TraverseMode.CLOSEST_PRIMITIVE:
+    img = t1.reshape(img_size, img_size)
+    img[~mask_img] = np.min(img[mask_img])
+    img = (img - np.min(img)) / (np.max(img) - np.min(img))
+    img = 1 - img
+    img[~mask_img] = 0
 
-img = t.reshape(img_size, img_size)
-img[~mask_img] = np.min(img[mask_img])
-img = (img - np.min(img)) / (np.max(img) - np.min(img))
-img = 1 - img
-img[~mask_img] = 0
+if mode == TraverseMode.CLOSEST_PRIMITIVE:
+    light_dir = np.array([1, -1, 1])
+    light_dir = light_dir / np.linalg.norm(light_dir)
+
+    normals[np.isnan(normals)] = 0
+    colors = np.dot(normals, light_dir) * 0.5 + 0.5
+    
+    img = colors.reshape(img_size, img_size)
+    img[~mask_img] = 0
 
 plt.axis('off')
 plt.imshow(img, cmap='gray')

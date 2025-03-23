@@ -53,15 +53,16 @@ dirs = cam_dir[None, :] + x_dir[None, :] * x_coords[:, None] + y_dir[None, :] * 
 # ==== Run BVH ==== #
 
 depths = np.zeros((cam_poses.shape[0],), dtype=np.uint32)
-bbox_idxs = np.zeros((cam_poses.shape[0], 64), dtype=np.uint32)
+bbox_idxs = np.zeros((cam_poses.shape[0],), dtype=np.uint32)
 mask = np.zeros((cam_poses.shape[0],), dtype=np.bool_)
 t1 = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
 t2 = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
+normals = np.zeros((cam_poses.shape[0], 3), dtype=np.float32)
 
 mode = TraverseMode.CLOSEST_PRIMITIVE
 
 if mode != TraverseMode.ANOTHER_BBOX:
-    bvh.traverse(cam_poses, dirs, mask, t1, t2, depths, bbox_idxs, TreeType.BVH, mode)
+    bvh.traverse(cam_poses, dirs, mask, t1, t2, bbox_idxs, normals, TreeType.BVH, mode)
 else:
     total_mask = np.zeros((cam_poses.shape[0],), dtype=np.bool_)
     total_t = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
@@ -69,7 +70,7 @@ else:
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive = bvh.traverse(cam_poses, dirs, depths, bbox_idxs, bbox_idxs, mask, t1, t2, TreeType.BVH, mode)
+        alive = bvh.traverse(cam_poses, dirs, mask, t1, t2, bbox_idxs, normals, TreeType.BVH, mode)
 
         total_mask = total_mask | mask
         total_t[mask & (t1 < total_t)] = t1[mask & (t1 < total_t)]
@@ -83,13 +84,22 @@ else:
 
 mask_img = mask.reshape(img_size, img_size)
 
-image = np.zeros((img_size, img_size, 3))
+if mode != TraverseMode.CLOSEST_PRIMITIVE:
+    img = t1.reshape(img_size, img_size)
+    img[~mask_img] = np.min(img[mask_img])
+    img = (img - np.min(img)) / (np.max(img) - np.min(img))
+    img = 1 - img
+    img[~mask_img] = 0
 
-img = t1.reshape(img_size, img_size)
-img[~mask_img] = np.min(img[mask_img])
-img = (img - np.min(img)) / (np.max(img) - np.min(img))
-img = 1 - img
-img[~mask_img] = 0
+if mode == TraverseMode.CLOSEST_PRIMITIVE:
+    light_dir = np.array([1, -1, 1])
+    light_dir = light_dir / np.linalg.norm(light_dir)
+
+    normals[np.isnan(normals)] = 0
+    colors = np.dot(normals, light_dir) * 0.5 + 0.5
+    
+    img = colors.reshape(img_size, img_size)
+    img[~mask_img] = 0
 
 plt.axis('off')
 plt.imshow(img, cmap='gray')

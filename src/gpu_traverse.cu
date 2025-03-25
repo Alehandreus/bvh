@@ -95,7 +95,7 @@ CUDA_GLOBAL void bbox_raygen_entry(
     st.node_stack[0] = leaf_idx;
     hit = bvh_traverse(ray, i_dp, st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
     hit.node_idx = leaf_idx;
-    hit.normal = ray_triangle_norm(i_dp.faces[hit.prim_idx], i_dp.vertices);
+    if (hit.hit) hit.normal = ray_triangle_norm(i_dp.faces[hit.prim_idx], i_dp.vertices);
     o_hits.fill(i, hit);
     o_rays.fill(i, {ray_origin, ray_end});
 }
@@ -124,11 +124,11 @@ CUDA_GLOBAL void fill_history_entry(
         o_di.bbox_idxs[i * 64 + depth++] = node_idx;
     }
 
-    for (int j = 0; j < depth / 2; j++) {
-        uint32_t tmp = o_di.bbox_idxs[i * 64 + j];
-        o_di.bbox_idxs[i * 64 + j] = o_di.bbox_idxs[i * 64 + depth - j - 1];
-        o_di.bbox_idxs[i * 64 + depth - j - 1] = tmp;
-    }
+    // for (int j = 0; j < depth / 2; j++) {
+    //     uint32_t tmp = o_di.bbox_idxs[i * 64 + j];
+    //     o_di.bbox_idxs[i * 64 + j] = o_di.bbox_idxs[i * 64 + depth - j - 1];
+    //     o_di.bbox_idxs[i * 64 + depth - j - 1] = tmp;
+    // }
 
     o_di.cur_depths[i] = depth;
 }

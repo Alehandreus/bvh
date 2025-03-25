@@ -71,40 +71,16 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 struct CPUTraverser {
     const BVHData &bvh;
 
-    std::vector<uint32_t> stack;
-    std::vector<int> cur_stack_sizes;
-    std::vector<uint32_t> bbox_idxs;
-    std::vector<int> cur_depths;
-    int stack_limit;
-
-    CPUTraverser(const BVHData &bvh) : bvh(bvh), stack_limit(bvh.depth * 2) {}
-
-    void reset_stack(int n_rays) {
-        stack.resize(n_rays * stack_limit);
-        std::fill(stack.begin(), stack.end(), 0);
-
-        cur_stack_sizes.resize(n_rays, 1);
-        std::fill(cur_stack_sizes.begin(), cur_stack_sizes.end(), 1);
-
-        bbox_idxs.resize(n_rays * bvh.depth);
-        std::fill(bbox_idxs.begin(), bbox_idxs.end(), 0);
-
-        cur_depths.resize(n_rays, 0);
-        std::fill(cur_depths.begin(), cur_depths.end(), 0);
-    }
+    CPUTraverser(const BVHData &bvh) : bvh(bvh) {}
 
     BVHDataPointers get_data_pointers() const {
         return {bvh.vertices.data(), bvh.faces.data(), bvh.nodes.data(), bvh.prim_idxs.data()};
     }
 
-    StackInfos get_stack_infos() {
-        return {stack_limit, cur_stack_sizes.data(), stack.data()};
-    }
-
     // traverse single ray, use local stack to be thread-safe
     HitResult closest_primitive_single(const Ray &ray) const {
-        std::vector<uint32_t> smol_node_stack(stack_limit, 0);
-        std::vector<int> smol_depth_stack(stack_limit, 0);
+        std::vector<uint32_t> smol_node_stack(64, 0);
+        std::vector<int> smol_depth_stack(64, 0);
         int smol_stack_size = 1;
 
         StackInfo stack_info = {smol_stack_size, smol_node_stack.data()};
@@ -120,18 +96,16 @@ struct CPUTraverser {
         float *o_t2,
         uint32_t *o_node_idx,
         glm::vec3 *o_normals,
+        int *io_stack_sizes,
+        uint32_t *io_stack,
         int n_rays,
         TreeType tree_type,
         TraverseMode traverse_mode
     ) {
-        if (traverse_mode != TraverseMode::ANOTHER_BBOX) {
-            reset_stack(n_rays);
-        }
-
         int alive = false;
 
         Rays rays = {i_ray_origs, i_ray_vecs};
-        StackInfos stack_infos = get_stack_infos();
+        StackInfos stack_infos = {64, io_stack_sizes, io_stack};
         HitResults hits = {o_masks, o_t1, o_t2, o_node_idx, o_normals};
         if (traverse_mode == TraverseMode::CLOSEST_PRIMITIVE) {
             hits.t2 = nullptr;

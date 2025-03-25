@@ -83,7 +83,6 @@ NB_MODULE(bvh_impl, m) {
 
     nb::class_<CPUTraverser>(m, "CPUTraverser")
         .def(nb::init<const BVHData&>())
-        .def("reset_stack", &CPUTraverser::reset_stack)
         .def("traverse", [](
             CPUTraverser& self,
             h_float3_batch& i_ray_origs,
@@ -93,6 +92,8 @@ NB_MODULE(bvh_impl, m) {
             h_float_batch& o_t2,
             h_uint_batch& o_node_idx,
             h_float3_batch& o_normals,
+            h_int_batch& io_stack_sizes,
+            h_uintN_batch& io_stack,
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -106,6 +107,8 @@ NB_MODULE(bvh_impl, m) {
                 o_t2.data(),
                 o_node_idx.data(),
                 (glm::vec3 *) o_normals.data(),
+                io_stack_sizes.data(),
+                io_stack.data(),
                 n_rays,
                 tree_type,
                 mode
@@ -118,15 +121,8 @@ NB_MODULE(bvh_impl, m) {
     #ifdef CUDA_ENABLED
     nb::class_<GPUTraverser>(m, "GPUTraverser")
         .def(nb::init<const BVHData&>())
-        .def("reset_stack", &GPUTraverser::reset_stack)
         .def("init_rand_state", &GPUTraverser::init_rand_state)
-        // .def("grow_nbvh", &GPUTraverser::grow_nbvh)
-        .def("grow_nbvh", [](GPUTraverser& self, int steps) {
-            self.grow_nbvh(steps);
-        })
-        .def("grow_nbvh", [](GPUTraverser& self) {
-            self.grow_nbvh();
-        })
+        .def("grow_nbvh", &GPUTraverser::grow_nbvh, nb::arg("steps") = 1)
         .def("traverse", [](
             GPUTraverser& self,
             d_float3_batch& i_ray_origs,
@@ -136,6 +132,8 @@ NB_MODULE(bvh_impl, m) {
             d_float_batch& o_t2,
             d_uint_batch& o_node_idx,
             d_float3_batch& o_normals,
+            d_int_batch& io_stack_sizes,
+            d_uintN_batch& io_stack,            
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -149,6 +147,8 @@ NB_MODULE(bvh_impl, m) {
                 o_t2.data(),
                 o_node_idx.data(),
                 (glm::vec3 *) o_normals.data(),
+                io_stack_sizes.data(),
+                io_stack.data(),                
                 n_rays,
                 tree_type,
                 mode
@@ -164,7 +164,9 @@ NB_MODULE(bvh_impl, m) {
             d_bool_batch& o_mask,
             d_float_batch& o_t1,
             d_uint_batch& o_node_idx,
-            d_float3_batch& o_normals
+            d_float3_batch& o_normals,
+            d_int_batch& io_stack_sizes,
+            d_uintN_batch& io_stack
         ) {
             self.bbox_raygen(
                 (glm::vec3 *) o_ray_origs.data(),
@@ -173,6 +175,8 @@ NB_MODULE(bvh_impl, m) {
                 o_t1.data(),
                 o_node_idx.data(),
                 (glm::vec3 *) o_normals.data(),
+                io_stack_sizes.data(),
+                io_stack.data(),
                 n_rays
             );
         })

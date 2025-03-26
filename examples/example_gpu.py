@@ -63,13 +63,11 @@ mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
 t1 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
 t2 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
 normals = torch.zeros((cam_poses.shape[0], 3), dtype=torch.float32).cuda()
-stack_sizse = torch.ones((cam_poses.shape[0],), dtype=torch.int32).cuda()
-stack = torch.zeros((cam_poses.shape[0], 64), dtype=torch.uint32).cuda()
 
 mode = TraverseMode.CLOSEST_PRIMITIVE
 
 if mode != TraverseMode.ANOTHER_BBOX:
-    bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, normals, stack_sizse, stack, TreeType.BVH, mode)
+    bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, normals, TreeType.BVH, mode)
 else:
     total_mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
     total_t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
@@ -77,7 +75,7 @@ else:
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive = bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, normals, stack_sizse, stack, False)
+        alive = bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, normals, False)
 
         total_mask = total_mask | mask
         total_t[mask & (t1 < total_t)] = t1[mask & (t1 < total_t)]

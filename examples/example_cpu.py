@@ -58,13 +58,10 @@ mask = np.zeros((cam_poses.shape[0],), dtype=np.bool_)
 t1 = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
 t2 = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
 normals = np.zeros((cam_poses.shape[0], 3), dtype=np.float32)
-stack_sizes = np.ones((cam_poses.shape[0],), dtype=np.int32)
-stack = np.zeros((cam_poses.shape[0], 64), dtype=np.uint32)
-
 mode = TraverseMode.CLOSEST_PRIMITIVE
 
 if mode != TraverseMode.ANOTHER_BBOX:
-    bvh.traverse(cam_poses, dirs, mask, t1, t2, bbox_idxs, normals, stack_sizes, stack,TreeType.BVH, mode)
+    bvh.traverse(cam_poses, dirs, mask, t1, t2, bbox_idxs, normals, TreeType.BVH, mode)
 else:
     total_mask = np.zeros((cam_poses.shape[0],), dtype=np.bool_)
     total_t = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
@@ -72,7 +69,7 @@ else:
     alive = True
     bvh.reset_stack(cam_poses.shape[0])
     while alive:
-        alive = bvh.traverse(cam_poses, dirs, mask, t1, t2, bbox_idxs, stack_sizes, stack,normals, TreeType.BVH, mode)
+        alive = bvh.traverse(cam_poses, dirs, mask, t1, t2, bbox_idxs, normals, TreeType.BVH, mode)
 
         total_mask = total_mask | mask
         total_t[mask & (t1 < total_t)] = t1[mask & (t1 < total_t)]

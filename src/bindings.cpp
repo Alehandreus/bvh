@@ -83,6 +83,7 @@ NB_MODULE(bvh_impl, m) {
 
     nb::class_<CPUTraverser>(m, "CPUTraverser")
         .def(nb::init<const BVHData&>())
+        .def("reset_stack", &CPUTraverser::reset_stack)
         .def("traverse", [](
             CPUTraverser& self,
             h_float3_batch& i_ray_origs,
@@ -92,8 +93,6 @@ NB_MODULE(bvh_impl, m) {
             h_float_batch& o_t2,
             h_uint_batch& o_node_idx,
             h_float3_batch& o_normals,
-            h_int_batch& io_stack_sizes,
-            h_uintN_batch& io_stack,
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -107,8 +106,6 @@ NB_MODULE(bvh_impl, m) {
                 o_t2.data(),
                 o_node_idx.data(),
                 (glm::vec3 *) o_normals.data(),
-                io_stack_sizes.data(),
-                io_stack.data(),
                 n_rays,
                 tree_type,
                 mode
@@ -121,7 +118,7 @@ NB_MODULE(bvh_impl, m) {
     #ifdef CUDA_ENABLED
     nb::class_<GPUTraverser>(m, "GPUTraverser")
         .def(nb::init<const BVHData&>())
-        .def("init_rand_state", &GPUTraverser::init_rand_state)
+        .def("reset_stack", &GPUTraverser::reset_stack)
         .def("grow_nbvh", &GPUTraverser::grow_nbvh, nb::arg("steps") = 1)
         .def("traverse", [](
             GPUTraverser& self,
@@ -131,9 +128,7 @@ NB_MODULE(bvh_impl, m) {
             d_float_batch& o_t1,
             d_float_batch& o_t2,
             d_uint_batch& o_node_idx,
-            d_float3_batch& o_normals,
-            d_int_batch& io_stack_sizes,
-            d_uintN_batch& io_stack,            
+            d_float3_batch& o_normals,        
             TreeType tree_type,
             TraverseMode mode
         ) {
@@ -146,39 +141,13 @@ NB_MODULE(bvh_impl, m) {
                 o_t1.data(),
                 o_t2.data(),
                 o_node_idx.data(),
-                (glm::vec3 *) o_normals.data(),
-                io_stack_sizes.data(),
-                io_stack.data(),                
+                (glm::vec3 *) o_normals.data(),             
                 n_rays,
                 tree_type,
                 mode
             );
 
             return alive;
-        })
-        .def("bbox_raygen", [](
-            GPUTraverser& self, 
-            uint32_t n_rays,
-            d_float3_batch& o_ray_origs,
-            d_float3_batch& o_ray_vecs,
-            d_bool_batch& o_mask,
-            d_float_batch& o_t1,
-            d_uint_batch& o_node_idx,
-            d_float3_batch& o_normals,
-            d_int_batch& io_stack_sizes,
-            d_uintN_batch& io_stack
-        ) {
-            self.bbox_raygen(
-                (glm::vec3 *) o_ray_origs.data(),
-                (glm::vec3 *) o_ray_vecs.data(),
-                o_mask.data(),
-                o_t1.data(),
-                o_node_idx.data(),
-                (glm::vec3 *) o_normals.data(),
-                io_stack_sizes.data(),
-                io_stack.data(),
-                n_rays
-            );
         })
         .def("fill_history", [](
             GPUTraverser& self,
@@ -196,6 +165,30 @@ NB_MODULE(bvh_impl, m) {
                 o_history.data(),
                 n_rays
             );
+        })
+    ;
+
+    nb::class_<GPURayGen>(m, "GPURayGen")
+        .def(nb::init<GPUTraverser&, int>())
+        .def("raygen", [](
+            GPURayGen& self,
+            d_float3_batch& o_ray_origs,
+            d_float3_batch& o_ray_vecs,
+            d_bool_batch& o_masks,
+            d_float_batch& o_t1,
+            d_uint_batch& o_bbox_idxs,
+            d_float3_batch& o_normals
+        ) {
+            int n_generated = self.raygen(
+                (glm::vec3 *) o_ray_origs.data(),
+                (glm::vec3 *) o_ray_vecs.data(),
+                o_masks.data(),
+                o_t1.data(),
+                o_bbox_idxs.data(),
+                (glm::vec3 *) o_normals.data()
+            );
+
+            return n_generated;
         })
     ;
     #endif

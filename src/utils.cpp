@@ -69,8 +69,19 @@ CUDA_HOST_DEVICE HitResult ray_box_intersection(
     const Ray &ray,
     const BBox &bbox
 ) {
-    glm::vec3 t1 = (bbox.min - ray.origin) / ray.vector;
-    glm::vec3 t2 = (bbox.max - ray.origin) / ray.vector;
+    Ray ray2 = ray;
+    if (fabs(ray2.vector.x) < 0.00001) {
+        ray2.vector.x = 0.00001;
+    }
+    if (fabs(ray.vector.y) < 0.00001) {
+        ray2.vector.y = 0.00001;
+    }
+    if (fabs(ray.vector.z) < 0.00001) {
+        ray2.vector.z = 0.00001;
+    }
+
+    glm::vec3 t1 = (bbox.min - ray2.origin) / ray2.vector;
+    glm::vec3 t2 = (bbox.max - ray2.origin) / ray2.vector;
 
     glm::vec3 tmin = glm::min(t1, t2);
     glm::vec3 tmax = glm::max(t1, t2);

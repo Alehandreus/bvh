@@ -37,6 +37,13 @@ struct StackInfos {
     CUDA_HOST_DEVICE StackInfo operator[](int i) {
         return {cur_stack_sizes[i], node_stacks + i * stack_limit};
     }
+
+    CUDA_HOST_DEVICE void fill(int i, const StackInfo &st) {
+        cur_stack_sizes[i] = st.cur_stack_size;
+        for (int j = 0; j < st.cur_stack_size; j++) {
+            node_stacks[i * stack_limit + j] = st.node_stack[j];
+        }
+    }
 };
 
 struct DepthInfo {
@@ -57,7 +64,7 @@ struct DepthInfos {
 enum class TraverseMode {
     CLOSEST_PRIMITIVE,
     CLOSEST_BBOX,
-    ANOTHER_BBOX    
+    ANOTHER_BBOX
 };
 
 CUDA_HOST_DEVICE HitResult bvh_traverse(
@@ -71,7 +78,22 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 struct CPUTraverser {
     const BVHData &bvh;
 
+    std::vector<uint32_t> stack;
+    std::vector<int> cur_stack_sizes;    
+
     CPUTraverser(const BVHData &bvh) : bvh(bvh) {}
+
+    void reset_stack(int n_rays) {
+        stack.resize(n_rays * 64);
+        std::fill(stack.begin(), stack.end(), 0);
+
+        cur_stack_sizes.resize(n_rays, 1);
+        std::fill(cur_stack_sizes.begin(), cur_stack_sizes.end(), 1);
+    }
+
+    StackInfos get_stack_infos() {
+        return {64, cur_stack_sizes.data(), stack.data()};
+    }    
 
     BVHDataPointers get_data_pointers() const {
         return {bvh.vertices.data(), bvh.faces.data(), bvh.nodes.data(), bvh.prim_idxs.data()};
@@ -96,16 +118,18 @@ struct CPUTraverser {
         float *o_t2,
         uint32_t *o_node_idx,
         glm::vec3 *o_normals,
-        int *io_stack_sizes,
-        uint32_t *io_stack,
         int n_rays,
         TreeType tree_type,
         TraverseMode traverse_mode
     ) {
+        if (traverse_mode != TraverseMode::ANOTHER_BBOX) {
+            reset_stack(n_rays);
+        }
+        
         int alive = false;
 
         Rays rays = {i_ray_origs, i_ray_vecs};
-        StackInfos stack_infos = {64, io_stack_sizes, io_stack};
+        StackInfos stack_infos = get_stack_infos();
         HitResults hits = {o_masks, o_t1, o_t2, o_node_idx, o_normals};
         if (traverse_mode == TraverseMode::CLOSEST_PRIMITIVE) {
             hits.t2 = nullptr;

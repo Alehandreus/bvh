@@ -86,8 +86,6 @@ int main() {
     thrust::device_vector<float> t1_d = t;
     thrust::device_vector<float> t2_d = t;
     thrust::device_vector<glm::vec3> normals_d(n_rays);
-    thrust::device_vector<int> stack_sizes_d(n_rays, 1);
-    thrust::device_vector<uint32_t> stack_d(n_rays * 64, 0);
 
     cout << endl;
 
@@ -104,8 +102,6 @@ int main() {
         t2_d.data().get(),
         bbox_idxs_d.data().get(),
         normals_d.data().get(),
-        stack_sizes_d.data().get(),
-        stack_d.data().get(),
         n_rays,
         TreeType::BVH,
         TraverseMode::CLOSEST_PRIMITIVE

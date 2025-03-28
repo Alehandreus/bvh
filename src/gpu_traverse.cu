@@ -171,9 +171,6 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
     /* ==== If hit, intersect BVH ==== */
 
-    // int nbvh_stack_size = st.cur_stack_size;
-    // st.node_stack[nbvh_stack_size] = nbvh_hit.node_idx;
-    // st.cur_stack_size = 1;
     int bvh_stack_size = 1;
     st.node_stack[st.cur_stack_size] = nbvh_hit.node_idx;
     StackInfo bvh_st = {bvh_stack_size, st.node_stack + st.cur_stack_size};
@@ -186,11 +183,6 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
     if (bvh_hit.t1 > 1.01) {
         success[i] = 0;
     }
-
-    // st.cur_stack_size = 0;
-
-    // st.cur_stack_size = nbvh_stack_size;
-    // io_stack_infos.cur_stack_sizes[i] = st.cur_stack_size;
 }
 
 CUDA_GLOBAL void fill_history_entry(
@@ -216,12 +208,6 @@ CUDA_GLOBAL void fill_history_entry(
         node = i_dp.nodes[node_idx];
         o_di.bbox_idxs[i * 64 + depth++] = node_idx;
     }
-
-    // for (int j = 0; j < depth / 2; j++) {
-    //     uint32_t tmp = o_di.bbox_idxs[i * 64 + j];
-    //     o_di.bbox_idxs[i * 64 + j] = o_di.bbox_idxs[i * 64 + depth - j - 1];
-    //     o_di.bbox_idxs[i * 64 + depth - j - 1] = tmp;
-    // }
 
     o_di.cur_depths[i] = depth;
 }

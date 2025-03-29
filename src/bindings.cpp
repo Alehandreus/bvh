@@ -78,7 +78,7 @@ NB_MODULE(bvh_impl, m) {
 
     nb::class_<CPUBuilder>(m, "CPUBuilder")
         .def(nb::init<const Mesh&>())
-        .def("build_bvh", &CPUBuilder::build_bvh)
+        .def("build_bvh", &CPUBuilder::build_bvh, "Use mesh provided in constructor to build BVH with given depth. Returns BVHData.")
     ;
 
     nb::class_<CPUTraverser>(m, "CPUTraverser")

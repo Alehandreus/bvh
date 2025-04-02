@@ -4,10 +4,13 @@ build_cpu:
 	src/utils.cpp \
 	src/build.cpp \
 	src/cpu_traverse.cpp \
+	bvh/src/bvh/v2/c_api/bvh.cpp \
+	-Ibvh/src/ \
 	-lassimp \
 	-fopenmp \
+	-std=c++20 \
 	-O3 \
-	-o bvh
+	-o bvh.out
 
 build_gpu:
 	nvcc \
@@ -24,7 +27,7 @@ build_gpu:
 	-arch=sm_89 \
 	-Xcudafe \
 		--diag_suppress=esa_on_defaulted_function_ignored \
-	-o bvh
+	-o bvh.out
 
 run:
-	./bvh
+	./bvh.out

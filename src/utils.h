@@ -39,39 +39,6 @@ uint32_t size(const std::vector<T> &v) {
     return v.size();
 }
 
-struct Face {
-    uint32_t v1, v2, v3;
-
-    Face() {}
-
-    Face(uint32_t v1, uint32_t v2, uint32_t v3) : v1(v1), v2(v2), v3(v3) {}
-
-    glm::vec3 get_centroid(const glm::vec3 *vertices) {
-        return (vertices[v1] + vertices[v2] + vertices[v3]) / 3.0f;
-    }
-
-    float extent(const glm::vec3 *vertices) const {
-        glm::vec3 min = vertices[v1];
-        glm::vec3 max = vertices[v1];
-
-        for (int i = 1; i < 3; i++) {
-            min = glm::min(min, vertices[operator[](i)]);
-            max = glm::max(max, vertices[operator[](i)]);
-        }
-
-        return glm::length(max - min);
-    }
-
-    uint32_t operator[](uint32_t i) const {
-        switch (i) {
-            case 0: return v1;
-            case 1: return v2;
-            case 2: return v3;
-            default: return 0;
-        }
-    }
-};
-
 struct BBox {
     glm::vec3 min, max;
 
@@ -97,6 +64,44 @@ struct BBox {
     float area() const {
         glm::vec3 d = diagonal();
         return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
+    }
+};
+
+
+struct Face {
+    uint32_t v1, v2, v3;
+
+    Face() {}
+
+    Face(uint32_t v1, uint32_t v2, uint32_t v3) : v1(v1), v2(v2), v3(v3) {}
+
+    glm::vec3 get_centroid(const glm::vec3 *vertices) const {
+        return (vertices[v1] + vertices[v2] + vertices[v3]) / 3.0f;
+    }
+
+    BBox get_bounds(const glm::vec3 *vertices) const {
+        glm::vec3 min = vertices[v1];
+        glm::vec3 max = vertices[v1];
+
+        for (int i = 1; i < 3; i++) {
+            min = glm::min(min, vertices[operator[](i)]);
+            max = glm::max(max, vertices[operator[](i)]);
+        }
+
+        return {min, max};
+    }
+
+    float extent(const glm::vec3 *vertices) const {
+        return glm::length(get_bounds(vertices).diagonal());
+    }
+
+    uint32_t operator[](uint32_t i) const {
+        switch (i) {
+            case 0: return v1;
+            case 1: return v2;
+            case 2: return v3;
+            default: return 0;
+        }
     }
 };
 

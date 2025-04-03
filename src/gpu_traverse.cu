@@ -176,12 +176,13 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
     StackInfo bvh_st = {bvh_stack_size, st.node_stack + st.cur_stack_size};
 
     HitResult bvh_hit = bvh_traverse(ray, i_dp, bvh_st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
-    if (bvh_hit.hit) bvh_hit.normal = ray_triangle_norm(i_dp.faces[bvh_hit.prim_idx], i_dp.vertices);
+    // if (bvh_hit.hit) bvh_hit.normal = ray_triangle_norm(i_dp.faces[bvh_hit.prim_idx], i_dp.vertices);
     bvh_hit.node_idx = nbvh_hit.node_idx;
     o_hits.fill(i, bvh_hit);
 
     if (bvh_hit.t1 > 1.01) {
         success[i] = 0;
+        st.cur_stack_size = 0;
     }
 }
 

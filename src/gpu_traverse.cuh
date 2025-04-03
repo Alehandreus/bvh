@@ -83,7 +83,6 @@ struct GPUTraverser {
     thrust::device_vector<glm::vec3> vertices;
     thrust::device_vector<Face> faces;
     thrust::device_vector<BVHNode> nodes;
-    thrust::device_vector<uint32_t> prim_idxs;
 
     thrust::device_vector<uint32_t> node_stack;
     thrust::device_vector<int> cur_stack_sizes;    
@@ -95,7 +94,6 @@ struct GPUTraverser {
         vertices = bvh.vertices;
         faces = bvh.faces;
         nodes = bvh.nodes;
-        prim_idxs = bvh.prim_idxs;
 
         BVHNode root = nodes[0];
         root.is_nbvh_leaf_ = 1;
@@ -124,15 +122,15 @@ struct GPUTraverser {
                 leaf.is_nbvh_leaf_ = 0;
                 nodes[leaf_idx] = leaf;
 
-                BVHNode left = nodes[leaf.left(leaf_idx)];
+                BVHNode left = nodes[leaf.left()];
                 left.is_nbvh_leaf_ = 1;
-                nodes[leaf.left(leaf_idx)] = left;
+                nodes[leaf.left()] = left;
 
                 BVHNode right = nodes[leaf.right()];
                 right.is_nbvh_leaf_ = 1;
                 nodes[leaf.right()] = right;
 
-                new_nbvh_leaf_idxs_cpu.push_back(leaf.left(leaf_idx));
+                new_nbvh_leaf_idxs_cpu.push_back(leaf.left());
                 new_nbvh_leaf_idxs_cpu.push_back(leaf.right());
             }
         }
@@ -154,7 +152,7 @@ struct GPUTraverser {
     }    
 
     BVHDataPointers get_data_pointers() const {
-        return {vertices.data().get(), faces.data().get(), nodes.data().get(), prim_idxs.data().get()};
+        return {vertices.data().get(), faces.data().get(), nodes.data().get()};
     }
 
     bool traverse(

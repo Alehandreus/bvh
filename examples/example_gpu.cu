@@ -15,7 +15,7 @@ int main() {
     cout << endl;
 
     cout << "Splitting faces..." << endl;
-    mesh.split_faces(0.9);
+    // mesh.split_faces(0.9);
     cout << "Number of vertices: " << mesh.vertices.size() << endl;
     cout << "Number of faces: " << mesh.faces.size() << endl;
 
@@ -27,7 +27,9 @@ int main() {
     BVHData bvh_data = builder.build_bvh(35);
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
     cout << "Number of nodes: " << bvh_data.n_nodes << endl;
-    bvh_data.save_as_obj("bvh.obj");
+    cout << "Number of leaves: " << bvh_data.n_leaves << endl;
+    cout << "Depth: " << bvh_data.depth << endl;
+    bvh_data.save_as_obj("bvh.obj", 12);
     GPUTraverser bvh(bvh_data);
 
     cout << endl;

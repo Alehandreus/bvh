@@ -8,8 +8,9 @@ from bvh import TreeType, TraverseMode
 
 # ==== Load and prepare BVH ==== #
 
-mesh = Mesh("suzanne.fbx")
-mesh.split_faces(0.9)
+# mesh = Mesh("suzanne.fbx")
+mesh = Mesh("models/lego.fbx")
+# mesh.split_faces(0.9)
 
 builder = CPUBuilder(mesh)
 bvh_data = builder.build_bvh(5)

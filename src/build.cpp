@@ -1,96 +1,81 @@
+#include <bvh/v2/bvh.h>
+#include <bvh/v2/default_builder.h>
+#include <bvh/v2/executor.h>
+#include <bvh/v2/node.h>
+#include <bvh/v2/thread_pool.h>
+#include <bvh/v2/tri.h>
+#include <bvh/v2/vec.h>
+
 #include "build.h"
 
 BVHData CPUBuilder::build_bvh(int max_depth) {
+    using LibVec3 = bvh::v2::Vec<float, 3>;
+    using LibBBox = bvh::v2::BBox<float, 3>;
+    using LibTri  = bvh::v2::Tri<float, 3>;
+    using LibNode = bvh::v2::Node<float, 3>;
+    using LibBVH  = bvh::v2::Bvh<LibNode>;
+
+    bvh::v2::ThreadPool thread_pool;
+    bvh::v2::ParallelExecutor executor(thread_pool);
+
     int n_faces = faces.size();
 
-    BVHData bvh;
-    bvh.vertices = vertices;
-    bvh.faces = faces;
-    bvh.nodes.resize(n_faces * 2);
+    std::vector<LibBBox> bboxes(n_faces);
+    std::vector<LibVec3> centers(n_faces);
+    executor.for_each(0, n_faces, [&](size_t begin, size_t end) {
+        for (size_t i = begin; i < end; ++i) {
+            const Face &face = faces[i];
 
-    for (int i = 0; i < faces.size(); i++) {
-        bvh.prim_idxs.push_back(i);
+            glm::vec3 centroid = face.get_centroid(vertices.data());
+            BBox bounds = face.get_bounds(vertices.data());
+
+            glm::vec3 min = bounds.min;
+            glm::vec3 max = bounds.max;
+
+            bboxes[i]  = {
+                {min.x, min.y, min.z},
+                {max.x, max.y, max.z}
+            };
+            centers[i] = {centroid.x, centroid.y, centroid.z};
+        }
+    });
+
+    typename bvh::v2::DefaultBuilder<LibNode>::Config config;
+    config.quality       = bvh::v2::DefaultBuilder<LibNode>::Quality::High;
+    config.min_leaf_size = 1;
+    config.max_leaf_size = 10;
+    LibBVH lib_bvh = bvh::v2::DefaultBuilder<LibNode>::build(thread_pool, bboxes, centers, config);
+
+    BVHData bvh_data;
+
+    bvh_data.nodes.resize(lib_bvh.nodes.size());
+
+    for (size_t node_id = 0; node_id < lib_bvh.nodes.size(); node_id++) {
+        LibNode node                 = lib_bvh.nodes[node_id];
+        LibBBox bbox                 = lib_bvh.nodes[node_id].get_bbox();
+        bvh_data.nodes[node_id].bbox.min = glm::vec3(bbox.min[0], bbox.min[1], bbox.min[2]);
+        bvh_data.nodes[node_id].bbox.max = glm::vec3(bbox.max[0], bbox.max[1], bbox.max[2]);
+
+        bvh_data.nodes[node_id].n_prims         = node.index.prim_count();
+        bvh_data.nodes[node_id].left_first_prim = node.index.first_id();
     }
-    
-    BVHNode& root = bvh.nodes[0];
-    root.left_first_prim = 0;
-    root.n_prims = n_faces;
-    root.update_bounds(faces.data(), vertices.data(), bvh.prim_idxs.data());
 
-    bvh.n_nodes = 1;
-    bvh.n_leaves = 0;
-    bvh.depth = 1;
-
-    split_node(bvh, 0, 1, max_depth);
-
-    bvh.nodes.resize(bvh.n_nodes);
-
-    // rearrange primitives according to prim_idxs
     std::vector<Face> new_faces(n_faces);
     for (int i = 0; i < n_faces; i++) {
-        new_faces[i] = faces[bvh.prim_idxs[i]];
+        int j = lib_bvh.prim_ids[i];
+        new_faces[i] = faces[j];
     }
-    bvh.faces = new_faces;
+    bvh_data.faces = new_faces;
+    bvh_data.vertices = vertices;
+    bvh_data.n_nodes = lib_bvh.nodes.size();
+    bvh_data.n_leaves = bvh_data.get_n_leaves();
+    bvh_data.depth = bvh_data.get_depth();
 
-    return bvh;
-}
-
-void CPUBuilder::split_node(BVHData &bvh, uint32_t node_idx, int cur_depth, int max_depth) {
-    BVHNode &node = bvh.nodes[node_idx];
-
-    bvh.depth = std::max(bvh.depth, cur_depth);
-    if (node.n_prims <= 2 || cur_depth >= max_depth) {
-        bvh.n_leaves++;
-        return;
-    }
-
-    glm::vec3 extent = node.bbox.diagonal();
-
-    int axis = 0;
-    if (extent.y > extent.x) axis = 1;
-    if (extent.z > extent[axis]) axis = 2;
-
-    float splitPos = node.bbox.min[axis] + extent[axis] * 0.5f;
-
-    // ingenious in-place partitioning
-    int i = node.left_first_prim;
-    int j = i + node.n_prims - 1;
-    while (i <= j) {
-        if (faces[bvh.prim_idxs[i]].get_centroid(bvh.vertices.data())[axis] < splitPos) {
-            i++;
-        } else {
-            std::swap(bvh.prim_idxs[i], bvh.prim_idxs[j--]);
-        }            
-    }
-
-    int leftCount = i - node.left_first_prim;
-    if (leftCount == 0 || leftCount == node.n_prims) {
-        bvh.n_leaves++;
-        return;
-    }
-
-    int left_idx = bvh.n_nodes++;
-    bvh.nodes[left_idx].left_first_prim = node.left_first_prim;
-    bvh.nodes[left_idx].n_prims = leftCount;
-    bvh.nodes[left_idx].update_bounds(faces.data(), vertices.data(), bvh.prim_idxs.data());
-    bvh.nodes[left_idx].father = node_idx;
-
-    split_node(bvh, left_idx, cur_depth + 1, max_depth);
-
-    int right_idx = bvh.n_nodes++;
-    bvh.nodes[right_idx].left_first_prim = i;
-    bvh.nodes[right_idx].n_prims = node.n_prims - leftCount;
-    bvh.nodes[right_idx].update_bounds(faces.data(), vertices.data(), bvh.prim_idxs.data());
-    bvh.nodes[right_idx].father = node_idx;
-
-    bvh.nodes[node_idx].left_first_prim = right_idx;
-    bvh.nodes[node_idx].n_prims = 0;
-
-    split_node(bvh, right_idx, cur_depth + 1, max_depth);
+    return bvh_data;
 }
 
 // thanks gpt-o1
-void BVHData::save_as_obj(const std::string &filename) {
+void BVHData::save_as_obj(const std::string &filename, int max_depth) {
     std::ofstream outFile(filename);
 
     if (!outFile.is_open()) {
@@ -124,17 +109,21 @@ void BVHData::save_as_obj(const std::string &filename) {
     };
 
     // Recursive function to traverse the BVH and write leaf nodes
-    std::function<void(uint32_t)> traverseAndWrite = [&](uint32_t node) {
+    std::function<void(uint32_t, int)> traverseAndWrite = [&](uint32_t node, int depth) {
+        if (depth == 0) {
+            writeCube(nodes[node].bbox.min, nodes[node].bbox.max);
+            return;
+        }
         if (nodes[node].is_leaf()) {
             writeCube(nodes[node].bbox.min, nodes[node].bbox.max);
         } else {
-            traverseAndWrite(nodes[node].left(node));
-            traverseAndWrite(nodes[node].right());
+            traverseAndWrite(nodes[node].left(), depth - 1);
+            traverseAndWrite(nodes[node].right(), depth - 1);
         }        
     };
 
     // Start traversal and writing
-    traverseAndWrite(0);
+    traverseAndWrite(0, max_depth);
 
     outFile.close();
     std::cout << "BVH saved as .obj file: " << filename << std::endl;

@@ -21,24 +21,24 @@ struct BVHNode {
         return is_leaf() || is_nbvh_leaf_;
     }
 
-    CUDA_HOST_DEVICE inline uint32_t left(uint32_t cur_idx) const {
-        return cur_idx + 1;
+    CUDA_HOST_DEVICE inline uint32_t left() const {
+        return left_first_prim;
     }
 
     CUDA_HOST_DEVICE inline uint32_t right() const {
-        return left_first_prim;
+        return left_first_prim + 1;
     }
 
     CUDA_HOST_DEVICE bool inside(glm::vec3 point) const {
         return bbox.inside(point);
     }
 
-    void update_bounds(const Face *faces, const glm::vec3 *vertices, const uint32_t *prim_idxs) {
+    void update_bounds(const Face *faces, const glm::vec3 *vertices) {
         bbox.min = glm::vec3(FLT_MAX);
         bbox.max = glm::vec3(-FLT_MAX);
 
         for (int prim_i = left_first_prim; prim_i < left_first_prim + n_prims; prim_i++) {
-            const Face &face = faces[prim_idxs[prim_i]];
+            const Face &face = faces[prim_i];
 
             for (int j = 0; j < 3; j++) {
                 const glm::vec3 &vertex = vertices[face[j]];
@@ -52,17 +52,33 @@ struct BVHData {
     std::vector<glm::vec3> vertices;
     std::vector<Face> faces;
     std::vector<BVHNode> nodes;
-    std::vector<uint32_t> prim_idxs;
 
     int depth;
     int n_nodes;
     int n_leaves;
 
     // save leaves as boxes in .obj file
-    void save_as_obj(const std::string &filename);
+    void save_as_obj(const std::string &filename, int max_depth = -1);
 
     int nodes_memory_bytes() {
         return nodes.size() * sizeof(nodes[0]);
+    }
+
+    int get_depth(int cur_node = 0) const {
+        if (nodes[cur_node].is_leaf()) {
+            return 0;
+        }
+        return std::max(
+            get_depth(nodes[cur_node].left()),
+            get_depth(nodes[cur_node].right())
+        ) + 1;
+    }
+
+    int get_n_leaves(int cur_node = 0) const {
+        if (nodes[cur_node].is_leaf()) {
+            return 1;
+        }
+        return get_n_leaves(nodes[cur_node].left()) + get_n_leaves(nodes[cur_node].right());
     }
 
 private:

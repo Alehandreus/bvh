@@ -21,7 +21,6 @@ struct BVHDataPointers {
     const glm::vec3 *vertices;
     const Face *faces;
     const BVHNode *nodes;
-    const uint32_t *prim_idxs;
 };
 
 struct StackInfo {
@@ -96,7 +95,7 @@ struct CPUTraverser {
     }    
 
     BVHDataPointers get_data_pointers() const {
-        return {bvh.vertices.data(), bvh.faces.data(), bvh.nodes.data(), bvh.prim_idxs.data()};
+        return {bvh.vertices.data(), bvh.faces.data(), bvh.nodes.data()};
     }
 
     // traverse single ray, use local stack to be thread-safe

@@ -19,7 +19,9 @@ build_gpu:
 	src/build.cpp \
 	src/cpu_traverse.cpp \
 	src/gpu_traverse.cu \
+	-Ibvh/src/ \
 	-lassimp \
+	-std=c++20 \
 	-O3 \
 	-x cu \
 	--relocatable-device-code=true \

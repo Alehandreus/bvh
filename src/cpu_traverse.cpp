@@ -67,7 +67,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 
         /* ==== non-leaf case ==== */
         else {
-            uint32_t left = node.left(node_idx);
+            uint32_t left = node.left();
             uint32_t right = node.right();
 
             HitResult left_hit = ray_box_intersection(i_ray, i_dp.nodes[left].bbox);

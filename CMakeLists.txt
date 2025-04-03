@@ -8,6 +8,8 @@ project(bvh LANGUAGES CXX CUDA)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --relocatable-device-code=true")
 
+set(CMAKE_CXX_STANDARD 20)
+
 set(CMAKE_CUDA_ARCHITECTURES 89)
 
 # Warn if the user invokes CMake directly
@@ -44,12 +46,16 @@ find_package(nanobind CONFIG REQUIRED)
 
 find_package(assimp REQUIRED)
 
+include_directories(bvh/src)
+
 set(SOURCES
     src/utils.cpp
     src/build.cpp
     src/cpu_traverse.cpp
     src/gpu_traverse.cu
     src/bindings.cpp
+
+    bvh/src/bvh/v2/c_api/bvh.cpp
 )
 
 nanobind_add_module(bvh_impl STABLE_ABI ${SOURCES})

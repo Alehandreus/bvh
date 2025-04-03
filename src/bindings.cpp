@@ -56,8 +56,8 @@ NB_MODULE(bvh_impl, m) {
         .def_ro("depth", &BVHData::depth)
         .def_ro("n_nodes", &BVHData::n_nodes)
         .def_ro("n_leaves", &BVHData::n_leaves)
-        .def("save_as_obj", [](BVHData& self, const char *filename) {
-            self.save_as_obj(filename);
+        .def("save_as_obj", [](BVHData& self, const char *filename, int max_depth) {
+            self.save_as_obj(filename, max_depth);
         })
         .def("nodes_memory_bytes", &BVHData::nodes_memory_bytes)
         .def("nodes_data", [](BVHData& self) {

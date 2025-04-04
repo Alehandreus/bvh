@@ -14,6 +14,7 @@ C++ / CUDA implementation of BVH Tree for [neural-intersection](https://github.c
 * **CUDA**
     * `sudo pacman -S cuda`
 * `pip install -r requirements.txt`
+* [github.com/madmann91/bvh](https://github.com/madmann91/bvh/)
 
 ## Installation
 

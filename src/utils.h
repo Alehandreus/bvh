@@ -147,7 +147,8 @@ struct HitResults {
 CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
     const Ray &ray,
     const Face& face,
-    const glm::vec3 *vertices
+    const glm::vec3 *vertices,
+    bool allow_negative = false
 );
 
 CUDA_HOST_DEVICE glm::vec3 ray_triangle_norm(
@@ -157,7 +158,8 @@ CUDA_HOST_DEVICE glm::vec3 ray_triangle_norm(
 
 CUDA_HOST_DEVICE HitResult ray_box_intersection(
     const Ray &ray,
-    const BBox &bbox
+    const BBox &bbox,
+    bool allow_negative = false
 );
 
 int timer(bool start);

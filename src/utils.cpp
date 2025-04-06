@@ -14,9 +14,10 @@ using std::cout, std::endl;
 CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
     const Ray &ray,
     const Face& face,
-    const glm::vec3 *vertices
+    const glm::vec3 *vertices,
+    bool allow_negative
 ) {
-    float epsilon = 0.0000001;
+    float epsilon = 1e-6;
 
     const glm::vec3 &a = vertices[face.v1];
     const glm::vec3 &b = vertices[face.v2];
@@ -45,7 +46,7 @@ CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
 
     // At this stage we can compute t to find out where the intersection point is on the line.
     float t = inv_det * glm::dot(edge2, s_cross_e1);
-    if (t < epsilon) {
+    if ((t < epsilon) && (!allow_negative)) {
         return { false, 0 };
     }
 
@@ -67,17 +68,29 @@ CUDA_HOST_DEVICE glm::vec3 ray_triangle_norm(
 
 CUDA_HOST_DEVICE HitResult ray_box_intersection(
     const Ray &ray,
-    const BBox &bbox
+    const BBox &bbox,
+    bool allow_negative
 ) {
+    const float eps = 1e-6;
+
     Ray ray2 = ray;
-    if (fabs(ray2.vector.x) < 0.00001) {
-        ray2.vector.x = 0.00001;
+    if (fabs(ray2.vector.x) < eps) {
+        if (ray2.origin.x < bbox.min.x || ray2.origin.x > bbox.max.x) {
+            return {false, 0, 0};
+        }
+        ray2.vector.x = FLT_MAX;
     }
-    if (fabs(ray.vector.y) < 0.00001) {
-        ray2.vector.y = 0.00001;
+    if (fabs(ray.vector.y) < eps) {
+        if (ray2.origin.y < bbox.min.y || ray2.origin.y > bbox.max.y) {
+            return {false, 0, 0};
+        }
+        ray2.vector.y = FLT_MAX;
     }
-    if (fabs(ray.vector.z) < 0.00001) {
-        ray2.vector.z = 0.00001;
+    if (fabs(ray.vector.z) < eps) {
+        if (ray2.origin.z < bbox.min.z || ray2.origin.z > bbox.max.z) {
+            return {false, 0, 0};
+        }
+        ray2.vector.z = FLT_MAX;
     }
 
     glm::vec3 t1 = (bbox.min - ray2.origin) / ray2.vector;
@@ -89,7 +102,8 @@ CUDA_HOST_DEVICE HitResult ray_box_intersection(
     float t_enter = glm::max(tmin.x, glm::max(tmin.y, tmin.z));
     float t_exit = glm::min(tmax.x, glm::min(tmax.y, tmax.z));
 
-    if (t_exit < 0 || t_enter > t_exit) {
+    // Check for valid intersection interval
+    if (t_enter > t_exit || (t_exit < 0 && !allow_negative)) {
         return {false, 0, 0};
     }
 

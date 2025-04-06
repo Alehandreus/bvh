@@ -75,11 +75,25 @@ CUDA_GLOBAL void bbox_raygen_entry_old(
         curand_uniform(state) * 0.98 + 0.01
     ) * extent + min;
 
-    glm::vec3 p2p1 = glm::normalize(glm::vec3(
+    glm::vec3 p2p1 = glm::vec3(
         curand_uniform(state) - 0.5f,
         curand_uniform(state) - 0.5f, 
         curand_uniform(state) - 0.5f
-    ));
+    );
+    if (fabs(p2p1.x) < 1e-6) p2p1.x = 0.0f;
+    if (fabs(p2p1.y) < 1e-6) p2p1.y = 0.0f;
+    if (fabs(p2p1.z) < 1e-6) p2p1.z = 0.0f;
+    if (glm::length(p2p1) < 1e-6) {
+        success[i] = 0;
+        return;
+    }
+    p2p1 = glm::normalize(p2p1);
+
+    // glm::vec3 p2p1 = glm::normalize(glm::vec3(
+    //     curand_uniform(state) - 0.5f,
+    //     curand_uniform(state) - 0.5f, 
+    //     curand_uniform(state) - 0.5f
+    // ));
 
     HitResult hit = ray_box_intersection(Ray{p1, p2p1}, leaf.bbox);
     if (!hit.hit) {
@@ -100,7 +114,7 @@ CUDA_GLOBAL void bbox_raygen_entry_old(
     st.node_stack[0] = leaf_idx;
     hit = bvh_traverse(ray, i_dp, st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
     hit.node_idx = leaf_idx;
-    if (hit.hit) hit.normal = ray_triangle_norm(i_dp.faces[hit.prim_idx], i_dp.vertices);
+    // if (hit.hit) hit.normal = ray_triangle_norm(i_dp.faces[hit.prim_idx], i_dp.vertices);
     o_hits.fill(i, hit);
     io_rays.fill(i, {ray_origin, ray_end});
     
@@ -140,11 +154,19 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
             curand_uniform(state) * 0.90 + 0.05
         ) * outer_bbox.diagonal() + outer_bbox.min;
 
-        glm::vec3 p2p1 = glm::normalize(glm::vec3(
+        glm::vec3 p2p1 = glm::vec3(
             curand_uniform(state) - 0.5f,
             curand_uniform(state) - 0.5f, 
             curand_uniform(state) - 0.5f
-        ));
+        );
+        if (fabs(p2p1.x) < 1e-6) p2p1.x = 0.0f;
+        if (fabs(p2p1.y) < 1e-6) p2p1.y = 0.0f;
+        if (fabs(p2p1.z) < 1e-6) p2p1.z = 0.0f;        
+        if (glm::length(p2p1) < 1e-6) {
+            success[i] = 0;
+            return;
+        }
+        p2p1 = glm::normalize(p2p1);
 
         io_rays.fill(i, {p1, p1 + p2p1}); // we store ray ends here
 
@@ -157,11 +179,30 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
     Ray points = io_rays[i];
     Ray ray = Ray{points.origin, points.vector - points.origin};
-    HitResult nbvh_hit = bvh_traverse(ray, i_dp, st, TraverseMode::ANOTHER_BBOX, TreeType::NBVH);
+
+    // float ray_length = glm::length(points.vector);
+    // Ray ray_normed = {ray.origin, ray.vector / ray_length};
+    HitResult nbvh_hit = bvh_traverse(ray, i_dp, st, TraverseMode::ANOTHER_BBOX, TreeType::NBVH, true);
+    // nbvh_hit.t1 *= ray_length;
+    // nbvh_hit.t2 *= ray_length;
+
     success[i] = nbvh_hit.hit;
     if (!nbvh_hit.hit) {
         return;
     }
+
+    if (fabs(nbvh_hit.t1 - nbvh_hit.t2) < 1e-6) {
+        // nbvh_hit.t1 -= 1e-6;
+        // nbvh_hit.t2 += 1e-6;
+    } else {
+        // nbvh_hit.t1 -= 1e-6 * (nbvh_hit.t2 - nbvh_hit.t1);
+        // nbvh_hit.t2 += 1e-6 * (nbvh_hit.t2 - nbvh_hit.t1);
+    }
+    // nbvh_hit.t1 -= glm::length(points.vector) * 1e-6;
+    // nbvh_hit.t2 += glm::length(points.vector) * 1e-6;
+
+    // nbvh_hit.t1 -= 1e-6;
+    // nbvh_hit.t2 += 1e-6;
 
     points.origin = ray.origin + ray.vector * nbvh_hit.t1;
     points.vector = ray.origin + ray.vector * nbvh_hit.t2;
@@ -172,18 +213,35 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
     /* ==== If hit, intersect BVH ==== */
 
     int bvh_stack_size = 1;
+    // st.node_stack[0] = 0;
+    // StackInfo bvh_st = {bvh_stack_size, st.node_stack};
     st.node_stack[st.cur_stack_size] = nbvh_hit.node_idx;
     StackInfo bvh_st = {bvh_stack_size, st.node_stack + st.cur_stack_size};
 
-    HitResult bvh_hit = bvh_traverse(ray, i_dp, bvh_st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
+    // ray_length = glm::length(points.vector);
+    // ray_normed = {ray.origin, ray.vector / ray_length};
+    HitResult bvh_hit = bvh_traverse(ray, i_dp, bvh_st, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH, false);
+    // bvh_hit.t1 *= ray_length;
+    // bvh_hit.t2 *= ray_length;
+
+    // TODO
+    if (bvh_hit.hit && glm::dot(bvh_hit.normal, ray.vector) > 0) {
+        success[i] = 0;
+        return;
+    }
+
     // if (bvh_hit.hit) bvh_hit.normal = ray_triangle_norm(i_dp.faces[bvh_hit.prim_idx], i_dp.vertices);
     bvh_hit.node_idx = nbvh_hit.node_idx;
+    // bvh_hit.node_idx = bvh_hit.prim_idx;
     o_hits.fill(i, bvh_hit);
 
-    if (bvh_hit.t1 > 1.01) {
-        success[i] = 0;
-        st.cur_stack_size = 0;
-    }
+    // TODO
+    // if (bvh_hit.t1 > 1.0 || bvh_hit.t1 < 0) {
+    //     success[i] = 0;
+    //     st.cur_stack_size = 0;
+    // }
+
+    st.cur_stack_size = 0;
 }
 
 CUDA_GLOBAL void fill_history_entry(

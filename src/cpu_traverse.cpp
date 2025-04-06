@@ -7,9 +7,12 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
     const BVHDataPointers &i_dp,
     StackInfo &io_st,
     TraverseMode mode,
-    TreeType tree_type
+    TreeType tree_type,
+    bool allow_negative
 ) {
     HitResult closest_hit = {false, FLT_MAX, 0};
+
+    constexpr float eps = 0.00001f;
 
     while (io_st.cur_stack_size > 0) {
         uint32_t node_idx = io_st.node_stack[--io_st.cur_stack_size];
@@ -23,7 +26,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
         if (is_leaf) {
             /* ==== intersect only node bbox ==== */
             if (mode == TraverseMode::ANOTHER_BBOX) {
-                HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox);
+                HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox, allow_negative);
                 bbox_hit.node_idx = node_idx;
                 if (bbox_hit.hit) {
                     return bbox_hit;
@@ -32,8 +35,8 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 
             /* ==== intersect primitives in node ==== */
             else if (mode == TraverseMode::CLOSEST_PRIMITIVE) {
-                HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox);
-                if (bbox_hit.t1 > closest_hit.t) {
+                HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox, allow_negative);
+                if (bbox_hit.t1 > closest_hit.t + eps) {
                     continue;
                 }
 
@@ -41,7 +44,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
                 for (int prim_i = node.left_first_prim; prim_i < node.left_first_prim + node.n_prims; prim_i++) {
                     const Face &face = i_dp.faces[prim_i];
 
-                    HitResult prim_hit = ray_triangle_intersection(i_ray, face, i_dp.vertices);
+                    HitResult prim_hit = ray_triangle_intersection(i_ray, face, i_dp.vertices, allow_negative);
 
                     if (prim_hit.hit && prim_hit.t < node_hit.t) {
                         prim_hit.prim_idx = prim_i;
@@ -57,7 +60,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
 
             /* ==== idk who needs this but return the closest bbox ==== */
             else if (mode == TraverseMode::CLOSEST_BBOX) {
-                HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox);
+                HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox, allow_negative);
                 bbox_hit.node_idx = node_idx;
                 if (bbox_hit.hit && bbox_hit.t1 < closest_hit.t1) {
                     closest_hit = bbox_hit;
@@ -70,8 +73,8 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
             uint32_t left = node.left();
             uint32_t right = node.right();
 
-            HitResult left_hit = ray_box_intersection(i_ray, i_dp.nodes[left].bbox);
-            HitResult right_hit = ray_box_intersection(i_ray, i_dp.nodes[right].bbox);
+            HitResult left_hit = ray_box_intersection(i_ray, i_dp.nodes[left].bbox, allow_negative);
+            HitResult right_hit = ray_box_intersection(i_ray, i_dp.nodes[right].bbox, allow_negative);
 
             if (left_hit.hit && right_hit.hit && (left_hit.t1 < right_hit.t1)) {
                 left = left ^ right;

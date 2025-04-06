@@ -32,9 +32,7 @@ struct Mesh {
 
             for (int face_i = 0; face_i < ai_mesh->mNumFaces; face_i++) {
                 aiFace face = ai_mesh->mFaces[face_i];
-                for (int index_i = 0; index_i < face.mNumIndices; index_i++) {
-                    faces.push_back({face.mIndices[0], face.mIndices[1], face.mIndices[2]});
-                }
+                faces.push_back({face.mIndices[0], face.mIndices[1], face.mIndices[2]});
             }
         }
     }

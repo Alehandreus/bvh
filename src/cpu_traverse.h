@@ -71,7 +71,8 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
     const BVHDataPointers &dp,
     StackInfo &st,
     TraverseMode mode,
-    TreeType tree_type
+    TreeType tree_type,
+    bool allow_negative = false
 );
 
 struct CPUTraverser {

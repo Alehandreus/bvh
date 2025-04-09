@@ -288,7 +288,8 @@ struct GPURayGen {
         //     n_rays
         // );
 
-        bbox_raygen_entry_new<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
+        int capacity = 16;
+        bbox_raygen_entry_new<<<(n_rays / capacity + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             traverser.get_data_pointers(),
             stack_infos,
             rand_states.data().get(),

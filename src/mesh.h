@@ -35,6 +35,37 @@ struct Mesh {
                 faces.push_back({face.mIndices[0], face.mIndices[1], face.mIndices[2]});
             }
         }
+
+        normalize_sphere();
+        cout << "Mesh normalized" << endl;
+    }
+
+    void normalize_sphere() {
+        glm::vec3 v_max = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+        glm::vec3 v_min = {FLT_MAX, FLT_MAX, FLT_MAX};
+
+        for (int i = 0; i < vertices.size(); ++i) {
+            v_max = glm::max(v_max, vertices[i]);
+            v_min = glm::min(v_min, vertices[i]);
+        }
+
+        glm::vec3 v_center = (v_max + v_min) * 0.5f;
+
+        for (int i = 0; i < vertices.size(); ++i) {
+            vertices[i] = vertices[i] - v_center;
+        }
+
+        float max_dist = -FLT_MAX;
+        for (int i = 0; i < vertices.size(); ++i) {
+            float length = glm::length(vertices[i]);
+            max_dist = fmax(max_dist, length);
+        }
+
+        float v_scale = 1 / max_dist;
+
+        for (int i = 0; i < vertices.size(); ++i) {
+            vertices[i] = vertices[i] * v_scale;
+        }
     }
 
     void split_faces(float frac) {

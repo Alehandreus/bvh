@@ -8,9 +8,14 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
     StackInfo &io_st,
     TraverseMode mode,
     TreeType tree_type,
-    bool allow_negative
+    bool allow_negative,
+    float closest_t
 ) {
     HitResult closest_hit = {false, FLT_MAX, 0};
+
+    if (closest_t != 0) {
+        closest_hit.t1 = closest_t;
+    }
 
     constexpr float eps = 0.00001f;
 
@@ -27,8 +32,11 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
             /* ==== intersect only node bbox ==== */
             if (mode == TraverseMode::ANOTHER_BBOX) {
                 HitResult bbox_hit = ray_box_intersection(i_ray, node.bbox, allow_negative);
-                bbox_hit.node_idx = node_idx;
+                if (bbox_hit.t1 > closest_hit.t1 + eps) {
+                    continue;
+                }
                 if (bbox_hit.hit) {
+                    bbox_hit.node_idx = node_idx;
                     return bbox_hit;
                 }
             }

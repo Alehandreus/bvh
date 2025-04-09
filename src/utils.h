@@ -121,9 +121,9 @@ struct HitResult {
     uint32_t prim_idx;
     glm::vec3 normal;
 
-    CUDA_HOST_DEVICE HitResult() : hit(false), t(0) {}
+    CUDA_HOST_DEVICE HitResult() : hit(false), t1(0) {}
 
-    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t(t) {}
+    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t1(t) {}
 
     CUDA_HOST_DEVICE HitResult(bool hit, float t1, float t2) : hit(hit), t1(t1), t2(t2) {}
 };

@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+from PIL import Image
 
 from bvh import Mesh, CPUBuilder, GPUTraverser
 from bvh import TreeType, TraverseMode
@@ -14,9 +15,10 @@ mesh = Mesh("models/lego.fbx")
 
 builder = CPUBuilder(mesh)
 bvh_data = builder.build_bvh(5)
+bvh_data.save_as_obj("bvh.obj", 25)
 bvh = GPUTraverser(bvh_data)
 
-img_size = 800
+img_size = 4096
 n_pixels = img_size * img_size
 
 
@@ -110,7 +112,5 @@ if mode == TraverseMode.CLOSEST_PRIMITIVE:
     img = colors.reshape(img_size, img_size)
     img[~mask_img] = 0
 
-plt.axis('off')
-plt.imshow(img, cmap='gray')
-plt.tight_layout()
-plt.savefig('output.png', bbox_inches='tight', pad_inches=0)
+image = Image.fromarray((img * 255).astype(np.uint8))
+image.save('output.png')

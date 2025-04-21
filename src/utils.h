@@ -61,9 +61,16 @@ struct BBox {
         return max - min;
     }
 
-    float area() const {
+    CUDA_HOST_DEVICE float area() const {
         glm::vec3 d = diagonal();
         return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
+    }
+
+    CUDA_HOST_DEVICE BBox get_inflated(float alpha) const {
+        return {
+            min - alpha * diagonal(),
+            max + alpha * diagonal()
+        };
     }
 };
 

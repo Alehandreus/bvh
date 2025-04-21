@@ -202,9 +202,11 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
         bool is_leaf = node.is_leaf() | node.is_nbvh_leaf();
         if (is_leaf) {
-            HitResult bbox_hit = ray_box_intersection(ray, node.bbox, true);
+            BBox leaf_bbox = node.bbox.get_inflated(0.1);
 
-            if (!node.bbox.inside(ray.origin + ray.vector * bbox_hit.t1)) {
+            HitResult bbox_hit = ray_box_intersection(ray, leaf_bbox, true);
+
+            if (!leaf_bbox.inside(ray.origin + ray.vector * bbox_hit.t1)) {
                 continue;
             }
 
@@ -214,7 +216,7 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
             if (bbox_hit.hit) {
                 HitResult res_hit;
-                bool inside = node.bbox.inside(hit_point);
+                bool inside = leaf_bbox.inside(hit_point);
                 // bool inside = bbox_hit.t1 < bvh_hit.t1 && bvh_hit.t1 < bbox_hit.t2;
                 res_hit.hit = bvh_hit.hit && inside;
 

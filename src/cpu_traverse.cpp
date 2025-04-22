@@ -29,7 +29,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
         }
 
         if (is_leaf) {
-            BBox leaf_bbox = node.bbox.get_inflated(0.1);
+            BBox leaf_bbox = node.bbox.get_inflated(0.3);
 
             /* ==== intersect only node bbox ==== */
             if (mode == TraverseMode::ANOTHER_BBOX) {

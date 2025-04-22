@@ -202,7 +202,7 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
         bool is_leaf = node.is_leaf() | node.is_nbvh_leaf();
         if (is_leaf) {
-            BBox leaf_bbox = node.bbox.get_inflated(0.1);
+            BBox leaf_bbox = node.bbox.get_inflated(0.3);
 
             HitResult bbox_hit = ray_box_intersection(ray, leaf_bbox, true);
 

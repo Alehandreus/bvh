@@ -202,7 +202,9 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
         bool is_leaf = node.is_leaf() | node.is_nbvh_leaf();
         if (is_leaf) {
-            BBox leaf_bbox = node.bbox.get_inflated(0.3);
+            BBox leaf_bbox = node.bbox.get_inflated(0.2);
+            // float alpha = curand_uniform(state) / 5 + 0.1; // [0.1; 0.3]
+            // BBox leaf_bbox = node.bbox.get_inflated(alpha);
 
             HitResult bbox_hit = ray_box_intersection(ray, leaf_bbox, true);
 
@@ -251,7 +253,7 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
                 closest_hit = bbox_hit;
 
-                if (res_hit.hit) break;
+                // if (res_hit.hit) break;
             }
         } else {
             uint32_t left = node.left();
@@ -259,6 +261,14 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
             HitResult left_hit = ray_box_intersection(ray, i_dp.nodes[left].bbox, true);
             HitResult right_hit = ray_box_intersection(ray, i_dp.nodes[right].bbox, true);
+
+            // if (left_hit.t1 > closest_hit.t + EPS) {
+            //     left_hit.hit = false;
+            // }
+
+            // if (right_hit.t1 > closest_hit.t + EPS) {
+            //     right_hit.hit = false;
+            // }
 
             if (left_hit.hit && right_hit.hit && (left_hit.t1 < right_hit.t1)) {
                 left = left ^ right;

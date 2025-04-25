@@ -29,7 +29,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
         }
 
         if (is_leaf) {
-            BBox leaf_bbox = node.bbox.get_inflated(0.3);
+            BBox leaf_bbox = node.bbox.get_inflated(0.2);
 
             /* ==== intersect only node bbox ==== */
             if (mode == TraverseMode::ANOTHER_BBOX) {
@@ -110,6 +110,9 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
         closest_hit.t = 0;
     } else if (mode == TraverseMode::CLOSEST_PRIMITIVE) {
         closest_hit.normal = ray_triangle_norm(i_dp.faces[closest_hit.prim_idx], i_dp.vertices);
+        // if (glm::dot(closest_hit.normal, i_ray.vector) > 0) {
+        //     closest_hit.normal = -closest_hit.normal;
+        // }
     }
 
     return closest_hit;

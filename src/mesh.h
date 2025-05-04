@@ -22,7 +22,7 @@ struct Mesh {
         vertices.clear();
         faces.clear();
 
-        cout << scene->mNumMeshes << " meshes; " << scene->mRootNode->mNumChildren << " children" << endl;
+        // cout << scene->mNumMeshes << " meshes; " << scene->mRootNode->mNumChildren << " children" << endl;
 
         for (int mesh_i = 0; mesh_i < scene->mNumMeshes; mesh_i++) {
             aiMesh *ai_mesh = scene->mMeshes[mesh_i];
@@ -38,10 +38,11 @@ struct Mesh {
             }
         }
 
-        cout << vertices.size() << " vertices; " << faces.size() << " faces" << endl; // why are vertices duplicated ????
-
         normalize_sphere();
-        cout << "Mesh normalized" << endl;
+    }
+
+    void print_stats() {
+        cout << vertices.size() << " vertices; " << faces.size() << " faces" << endl; // why are vertices duplicated ????
     }
 
     void normalize_sphere() {

@@ -202,7 +202,6 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
         bool is_leaf = node.is_leaf() | node.is_nbvh_leaf();
         if (is_leaf) {
-            // BBox leaf_bbox = node.bbox.get_inflated(0.2);
             // float alpha = 0.2;
             float alpha = curand_uniform(state) / 5 + 0.1; // [0.1; 0.3]
             // float alpha = (curand_uniform(state) - 0.5) * 0.5;

@@ -79,43 +79,6 @@ BVHData CPUBuilder::build_bvh(int max_depth) {
         bvh_data.nodes[node.right()].father = i;
     }
 
-    // ==== //
-    // cout << "Welcome to BVH! This tree has the following faces:" << endl;
-    // for (int i = 0; i < bvh_data.faces.size(); i++) {
-    //     cout << "Face " << i << endl;
-    //     glm::vec3 v1 = bvh_data.vertices[bvh_data.faces[i].v1];
-    //     glm::vec3 v2 = bvh_data.vertices[bvh_data.faces[i].v2];
-    //     glm::vec3 v3 = bvh_data.vertices[bvh_data.faces[i].v3];
-    //     cout << "  Vertices: " << v1.x << ", " << v1.y << ", " << v1.z << endl;
-    //     cout << "             " << v2.x << ", " << v2.y << ", " << v2.z << endl;
-    //     cout << "             " << v3.x << ", " << v3.y << ", " << v3.z << endl;
-    //     glm::vec3 norm = ray_triangle_norm(bvh_data.faces[i], bvh_data.vertices.data());
-    //     cout << "Normal: " << norm.x << ", " << norm.y << ", " << norm.z << endl;
-    //     cout << endl;
-    // }
-
-    // cout << "Nodes: " << bvh_data.n_nodes << endl;
-    // for (int i = 0; i < bvh_data.n_nodes; i++) {
-    //     cout << "Node " << i << ": " << bvh_data.nodes[i].is_leaf() << endl;
-    //     if (bvh_data.nodes[i].is_leaf()) {
-    //         cout << "  Leaf node" << endl;
-    //         // cout << "  First primitive: " << bvh_data.nodes[i].left_first_prim << endl;
-    //         // cout << "  n_prims: " << bvh_data.nodes[i].n_prims << endl;
-    //         cout << "  Primitives: ";
-    //         for (int j = 0; j < bvh_data.nodes[i].n_prims; j++) {
-    //             cout << bvh_data.nodes[i].left_first_prim + j << " ";
-    //         }
-    //         cout << endl;
-    //     } else {
-    //         cout << "  Non-leaf node" << endl;
-    //         cout << "  Left child: " << bvh_data.nodes[i].left() << endl;
-    //         cout << "  Right child: " << bvh_data.nodes[i].right() << endl;
-    //     }
-    //     cout << "  BBox: " << bvh_data.nodes[i].bbox.min.x << ", " << bvh_data.nodes[i].bbox.min.y << ", " << bvh_data.nodes[i].bbox.min.z << " - "
-    //          << bvh_data.nodes[i].bbox.max.x << ", " << bvh_data.nodes[i].bbox.max.y << ", " << bvh_data.nodes[i].bbox.max.z << endl;
-    //     cout << endl;
-    // }
-
     return bvh_data;
 }
 

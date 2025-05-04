@@ -9,8 +9,7 @@ from bvh import TreeType, TraverseMode
 
 # ==== Load and prepare BVH ==== #
 
-# mesh = Mesh("suzanne.fbx")
-mesh = Mesh("models/lego.fbx")
+mesh = Mesh("suzanne.fbx")
 # mesh.split_faces(0.9)
 
 builder = CPUBuilder(mesh)
@@ -18,7 +17,7 @@ bvh_data = builder.build_bvh(5)
 bvh_data.save_as_obj("bvh.obj", 25)
 bvh = GPUTraverser(bvh_data)
 
-img_size = 4096
+img_size = 800
 n_pixels = img_size * img_size
 
 

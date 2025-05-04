@@ -99,7 +99,6 @@ struct GPUTraverser {
         root.is_nbvh_leaf_ = 1;
         nodes[0] = root;
         
-        // nbvh_leaf_idxs = { 0 };
         std::vector<uint32_t> a = { 0 };
         nbvh_leaf_idxs = a;
         n_nbvh_leaves = nbvh_leaf_idxs.size();

@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
 from bvh import Mesh, CPUBuilder, CPUTraverser
 from bvh import TreeType, TraverseMode
@@ -7,14 +8,15 @@ from bvh import TreeType, TraverseMode
 
 # ==== Load and prepare BVH ==== #
 
-mesh = Mesh("suzanne.fbx")
+mesh = Mesh("suzanne.fbx", True)
 # mesh.split_faces(0.9)
 
 builder = CPUBuilder(mesh)
 bvh_data = builder.build_bvh(25)
+bvh_data.save_as_obj("bvh.obj", 25)
 bvh = CPUTraverser(bvh_data)
 
-img_size = 1000
+img_size = 800
 n_pixels = img_size * img_size
 
 
@@ -100,7 +102,5 @@ if mode == TraverseMode.CLOSEST_PRIMITIVE:
     img = colors.reshape(img_size, img_size)
     img[~mask_img] = 0
 
-plt.axis('off')
-plt.imshow(img, cmap='gray')
-plt.tight_layout()
-plt.savefig('output.png', bbox_inches='tight', pad_inches=0)
+image = Image.fromarray((img * 255).astype(np.uint8))
+image.save('output.png')

@@ -17,6 +17,8 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
         closest_hit.t1 = closest_t;
     }
 
+    closest_hit.t1 = FLT_MAX;
+
     constexpr float eps = 0.00001f;
 
     while (io_st.cur_stack_size > 0) {
@@ -46,7 +48,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
             /* ==== intersect primitives in node ==== */
             else if (mode == TraverseMode::CLOSEST_PRIMITIVE) {
                 HitResult bbox_hit = ray_box_intersection(i_ray, leaf_bbox, allow_negative);
-                if (bbox_hit.t1 > closest_hit.t + eps) {
+                if (bbox_hit.t1 > closest_hit.t1 + eps) {
                     continue;
                 }
 
@@ -92,8 +94,14 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
                 left = left ^ right;
             }
 
-            // if (left_hit.t1 > closest_hit.t1 + eps) {
-            //     continue;
+            // needs fixing
+
+            // if (left_hit.t1 > closest_hit.t1) {
+            //     left_hit.hit = false;
+            // }
+
+            // if (right_hit.t1 > closest_hit.t1) {
+            //     right_hit.hit = false;
             // }
 
             if (left_hit.hit) {

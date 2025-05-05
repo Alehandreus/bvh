@@ -171,7 +171,7 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
     if (fabs(p2p1.z) < 1e-6) p2p1.z = 0.0f;   
      
     if (glm::length(p2p1) < 1e-6) {
-        // success[i] = 0;
+        success[i] = 0;
         return;
     }
 

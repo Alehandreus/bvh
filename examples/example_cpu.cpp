@@ -62,8 +62,9 @@ int main() {
             HitResult hit = bvh.closest_primitive_single({cam_pos, dir});
 
             if (hit.hit) {
-                float color = glm::dot(light_dir, hit.normal) * 0.5 + 0.5;
-                img[y * img_size + x] = { color, color, color };
+                float att = glm::dot(light_dir, hit.normal) * 0.5 + 0.5;
+                glm::vec3 color = hit.color * att;
+                img[y * img_size + x] = color;
             }
         }
     }

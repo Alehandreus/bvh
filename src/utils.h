@@ -127,6 +127,7 @@ struct HitResult {
     uint32_t node_idx;
     uint32_t prim_idx;
     glm::vec3 normal;
+    glm::vec3 color;
 
     CUDA_HOST_DEVICE HitResult() : hit(false), t1(0) {}
 
@@ -141,6 +142,7 @@ struct HitResults {
     float *t2;
     uint32_t *node_idxs;
     glm::vec3 *normals;
+    glm::vec3 *colors;
 
     CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
         masks[i] = hit.hit;
@@ -148,6 +150,7 @@ struct HitResults {
         if (t2) t2[i] = hit.t2;        
         node_idxs[i] = hit.node_idx;
         if (normals) normals[i] = hit.normal;
+        if (colors) colors[i] = hit.color;
     }
 };
 

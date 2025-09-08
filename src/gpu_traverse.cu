@@ -202,6 +202,29 @@ CUDA_GLOBAL void bbox_raygen_entry_new(
 
         bool is_leaf = node.is_leaf() | node.is_nbvh_leaf();
         if (is_leaf) {
+            // BBox leaf_bbox = node.bbox.get_inflated(0.2);
+
+            // HitResult bbox_hit = ray_box_intersection(ray, leaf_bbox, true);
+            // if (bbox_hit.t1 > closest_hit.t1 + 1e-6) {
+            //     continue;
+            // }
+
+            // HitResult node_hit = {false, FLT_MAX};
+            // for (int prim_i = node.left_first_prim; prim_i < node.left_first_prim + node.n_prims; prim_i++) {
+            //     const Face &face = i_dp.faces[prim_i];
+
+            //     HitResult prim_hit = ray_triangle_intersection(ray, face, i_dp.vertices, true);
+
+            //     if (prim_hit.hit && prim_hit.t < node_hit.t) {
+            //         prim_hit.prim_idx = prim_i;
+            //         node_hit = prim_hit;
+            //     }
+            // }
+
+            // bbox_hit.hit = (node_hit.hit && node_hit.t < closest_hit.t);
+            
+            // ================= //
+
             // float alpha = 0.2;
             float alpha = curand_uniform(state) / 5 + 0.1; // [0.1; 0.3]
             // float alpha = (curand_uniform(state) - 0.5) * 0.5;

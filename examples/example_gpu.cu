@@ -8,7 +8,7 @@ int main() {
     /* ==== Load and prepare BVH ==== */
 
     cout << "Loading scene..." << endl;
-    Mesh mesh("models/lego.fbx");
+    Mesh mesh("suzanne.fbx");
     cout << "Number of vertices: " << mesh.vertices.size() << endl;
     cout << "Number of faces: " << mesh.faces.size() << endl;
 
@@ -29,7 +29,7 @@ int main() {
     cout << "Number of nodes: " << bvh_data.n_nodes << endl;
     cout << "Number of leaves: " << bvh_data.n_leaves << endl;
     cout << "Depth: " << bvh_data.depth << endl;
-    bvh_data.save_as_obj("bvh.obj", 12);
+    // bvh_data.save_as_obj("bvh.obj", 12);
     GPUTraverser bvh(bvh_data);
 
     cout << endl;

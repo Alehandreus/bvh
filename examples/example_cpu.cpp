@@ -4,7 +4,7 @@ int main() {
     /* ==== Load and prepare BVH ==== */
 
     cout << "Loading scene..." << endl;
-    Mesh mesh("models/lego.fbx");
+    Mesh mesh("suzanne.fbx");
     cout << "Number of vertices: " << mesh.vertices.size() << endl;
     cout << "Number of faces: " << mesh.faces.size() << endl;
 

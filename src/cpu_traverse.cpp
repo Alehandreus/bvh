@@ -57,13 +57,13 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
                     const Face &face = i_dp.faces[prim_i];
 
                     HitResult prim_hit = ray_triangle_intersection(i_ray, face, i_dp.vertices, allow_negative);
-                    int idx = node_idx;
-                    glm::vec3 color = {
-                        (idx / 10.0) - (idx / 10),
-                        (idx * 3 / 10.0) - (idx * 3 / 10),
-                        (idx * 7 / 10.0) - (idx * 7 / 10)
-                    };
-                    prim_hit.color = color, color, color;
+                    // int idx = node_idx;
+                    // glm::vec3 color = {
+                    //     (idx / 10.0) - (idx / 10),
+                    //     (idx * 3 / 10.0) - (idx * 3 / 10),
+                    //     (idx * 7 / 10.0) - (idx * 7 / 10)
+                    // };
+                    // prim_hit.color = color, color, color;
 
                     if (prim_hit.hit && prim_hit.t < node_hit.t) {
                         prim_hit.prim_idx = prim_i;

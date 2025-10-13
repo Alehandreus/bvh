@@ -47,18 +47,6 @@ CUDA_GLOBAL void traverse_entry(
     int *o_alive
 );
 
-CUDA_GLOBAL void bbox_raygen_entry_old(
-    const BVHDataPointers i_dp,
-    StackInfos io_stack_infos,
-    curandState *io_rand_states,
-    uint32_t *i_leaf_idxs,
-    int n_leaves,    
-    Rays io_rays,
-    HitResults o_hits,
-    int *success,
-    int n_rays
-);
-
 CUDA_GLOBAL void bbox_raygen_entry_new(
     const BVHDataPointers i_dp,
     StackInfos io_stack_infos,
@@ -274,18 +262,6 @@ struct GPURayGen {
         Rays all_rays = {all_ray_origs.data().get(), all_ray_ends.data().get()};
         HitResults all_hits = {all_masks.data().get(), all_t1.data().get(), nullptr, all_bbox_idxs.data().get(), all_normals.data().get()};
         StackInfos stack_infos = {64, stack_sizes.data().get(), stack.data().get()};
-
-        // bbox_raygen_entry_old<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
-        //     traverser.get_data_pointers(),
-        //     stack_infos,
-        //     rand_states.data().get(),
-        //     traverser.nbvh_leaf_idxs.data().get(),
-        //     traverser.n_nbvh_leaves,
-        //     all_rays,
-        //     all_hits,
-        //     success.data().get(),
-        //     n_rays
-        // );
 
         int capacity = 16;
         bbox_raygen_entry_new<<<(n_rays / capacity + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(

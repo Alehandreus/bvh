@@ -72,7 +72,8 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
                 }
 
                 if (node_hit.hit && node_hit.t < closest_hit.t) {
-                    node_hit.node_idx = node_idx;
+                    // node_hit.node_idx = node_idx;
+                    node_hit.node_idx = node_hit.prim_idx;
                     closest_hit = node_hit;
                 }
             }

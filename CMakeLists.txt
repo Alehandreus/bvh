@@ -54,6 +54,7 @@ set(SOURCES
     src/cpu_traverse.cpp
     src/gpu_traverse.cu
     src/bindings.cpp
+    src/mesh_sampler.cu
 
     bvh/src/bvh/v2/c_api/bvh.cpp
 )

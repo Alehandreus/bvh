@@ -6,6 +6,7 @@
 #ifdef CUDA_ENABLED
 #include <cuda_runtime.h>
 #include "gpu_traverse.cuh"
+#include "mesh_sampler.cuh"
 #endif
 
 namespace nb = nanobind;
@@ -116,6 +117,25 @@ NB_MODULE(bvh_impl, m) {
     ;
 
     #ifdef CUDA_ENABLED
+    nb::enum_<MeshSamplerMode>(m, "MeshSamplerMode")
+        .value("SURFACE_UNIFORM", MeshSamplerMode::SURFACE_UNIFORM)
+        .export_values()
+    ;
+
+    nb::class_<GPUMeshSampler>(m, "GPUMeshSampler")
+        .def(nb::init<const Mesh&, MeshSamplerMode, int>(), nb::arg("mesh"), nb::arg("mode"), nb::arg("max_points"))
+        .def("sample", [](GPUMeshSampler& self, d_float3_batch& o_points, int n_points) {
+            if (n_points > self.max_points_) {
+                throw std::runtime_error("n_points exceeds max_points set in constructor");
+            }
+            if (o_points.shape(0) < n_points || o_points.shape(1) != 3) {
+                throw std::runtime_error("o_points has incorrect shape");
+            }
+
+            self.sample((glm::vec3 *) o_points.data(), n_points);
+        })
+    ;
+
     nb::class_<GPUTraverser>(m, "GPUTraverser")
         .def(nb::init<const BVHData&>())
         .def("reset_stack", &GPUTraverser::reset_stack)

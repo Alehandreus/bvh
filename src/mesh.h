@@ -38,7 +38,7 @@ struct Mesh {
             }
         }
 
-        normalize_sphere();
+        // normalize_sphere();
     }
 
     void print_stats() {

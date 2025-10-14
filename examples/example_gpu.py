@@ -5,6 +5,7 @@ from PIL import Image
 
 from bvh import Mesh, CPUBuilder, GPUTraverser
 from bvh import TreeType, TraverseMode
+from bvh import GPURayTracer
 
 
 # ==== Load and prepare BVH ==== #
@@ -58,34 +59,9 @@ d_dirs = torch.from_numpy(dirs).cuda()
 
 # ==== Run BVH ==== #
 
-depths = torch.zeros((cam_poses.shape[0],), dtype=torch.int).cuda()
-bbox_idxs = torch.zeros((cam_poses.shape[0]), dtype=torch.uint32).cuda()
-history = torch.zeros((cam_poses.shape[0], 64), dtype=torch.uint32).cuda()
-mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
-t1 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
-t2 = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
-normals = torch.zeros((cam_poses.shape[0], 3), dtype=torch.float32).cuda()
-
-mode = TraverseMode.CLOSEST_PRIMITIVE
-
-if mode != TraverseMode.ANOTHER_BBOX:
-    bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, normals, TreeType.BVH, mode)
-else:
-    total_mask = torch.zeros((cam_poses.shape[0],), dtype=torch.bool).cuda()
-    total_t = torch.zeros((cam_poses.shape[0],), dtype=torch.float32).cuda() + 1e9
-
-    alive = True
-    bvh.reset_stack(cam_poses.shape[0])
-    while alive:
-        alive = bvh.traverse(d_cam_poses, d_dirs, mask, t1, t2, bbox_idxs, normals, False)
-
-        total_mask = total_mask | mask
-        total_t[mask & (t1 < total_t)] = t1[mask & (t1 < total_t)]
-
-    mask = total_mask
-    t1 = total_t
-    t1[t1 == 1e9] = 0
-
+ray_tracer = GPURayTracer(bvh_data)
+mask, t1, normals = ray_tracer.trace(d_cam_poses, d_dirs)
+t1[t1 == 1e9] = 0
 
 # ==== Visualize ==== #
 
@@ -94,22 +70,14 @@ mask_img = mask_img.cpu().numpy()
 normals = normals.cpu().numpy()
 t1 = t1.cpu().numpy()
 
-if mode != TraverseMode.CLOSEST_PRIMITIVE:
-    img = t1.reshape(img_size, img_size)
-    img[~mask_img] = np.min(img[mask_img])
-    img = (img - np.min(img)) / (np.max(img) - np.min(img))
-    img = 1 - img
-    img[~mask_img] = 0
+light_dir = np.array([1, -1, 1])
+light_dir = light_dir / np.linalg.norm(light_dir)
 
-if mode == TraverseMode.CLOSEST_PRIMITIVE:
-    light_dir = np.array([1, -1, 1])
-    light_dir = light_dir / np.linalg.norm(light_dir)
+normals[np.isnan(normals)] = 0
+colors = np.dot(normals, light_dir) * 0.5 + 0.5
 
-    normals[np.isnan(normals)] = 0
-    colors = np.dot(normals, light_dir) * 0.5 + 0.5
-    
-    img = colors.reshape(img_size, img_size)
-    img[~mask_img] = 0
+img = colors.reshape(img_size, img_size)
+img[~mask_img] = 0
 
 image = Image.fromarray((img * 255).astype(np.uint8))
 image.save('output.png')

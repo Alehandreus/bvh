@@ -4,7 +4,13 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+#include <fstream>
+
+#include <glm/gtc/matrix_transform.hpp>
+
 #include "utils.h"
+
+#include "stb_image_write.h"
 
 struct Mesh {
     std::vector<glm::vec3> vertices;
@@ -22,8 +28,6 @@ struct Mesh {
         vertices.clear();
         faces.clear();
 
-        // cout << scene->mNumMeshes << " meshes; " << scene->mRootNode->mNumChildren << " children" << endl;
-
         for (int mesh_i = 0; mesh_i < scene->mNumMeshes; mesh_i++) {
             aiMesh *ai_mesh = scene->mMeshes[mesh_i];
 
@@ -40,6 +44,8 @@ struct Mesh {
 
         // normalize_sphere();
     }
+
+    Mesh(const std::vector<glm::vec3> vertices, const std::vector<Face> faces) : vertices(std::move(vertices)), faces(std::move(faces)) {}
 
     void print_stats() {
         cout << vertices.size() << " vertices; " << faces.size() << " faces" << endl; // why are vertices duplicated ????
@@ -124,4 +130,134 @@ struct Mesh {
 
         return {min, max};
     }
+
+    void save_to_obj(const char *filename) {
+        std::ofstream outFile(filename);
+
+        if (!outFile.is_open()) {
+            std::cerr << "Failed to open file: " << filename << std::endl;
+            return;
+        }
+
+        for (const glm::vec3 &vertex : vertices) {
+            // outFile << "v " << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
+
+            // swap y and z for blender
+            outFile << "v " << vertex.x << " " << vertex.z << " " << -vertex.y << "\n";
+        }
+
+        for (const Face &face : faces) {
+            outFile << "f " << face.v1 + 1 << " " << face.v2 + 1 << " " << face.v3 + 1 << "\n";
+        }
+
+        outFile.close();
+    }
+
+    bool save_preview(const char *filename, int width, int height) const {
+        if (vertices.empty() || faces.empty() || width <= 0 || height <= 0) return false;
+
+        // Center & scale heuristics
+        glm::vec3 c(0.0f);
+        for (auto& v : vertices) c += v;
+        c /= float(vertices.size());
+        float R = 0.0f;
+        for (auto& v : vertices) R = std::max(R, glm::length(v - c));
+        if (R <= 0.0f) R = 1.0f;
+
+        c = {c.x, c.z, -c.y}; // swap y and z for blender
+
+        // Camera: front-right, slightly above, looking at the mesh center
+        glm::vec3 eye = c + glm::normalize(glm::vec3(1.0f, 0.35f, 1.0f)) * (2.2f * R);
+        glm::mat4 V   = glm::lookAt(eye, c, glm::vec3(0, 1, 0));
+        float aspect  = float(width) / float(height);
+        float nearZ   = std::max(1e-4f, 0.10f * R);
+        float farZ    = nearZ + 6.0f * R;
+        glm::mat4 P   = glm::perspective(glm::radians(50.0f), aspect, nearZ, farZ);
+        glm::mat4 MVP = P * V;
+
+        std::vector<float> zbuf(size_t(width) * size_t(height), std::numeric_limits<float>::infinity());
+        std::vector<uint8_t> rgb(size_t(width) * size_t(height) * 3u, 0);
+
+        auto to_screen = [&](const glm::vec3& p, float& sx, float& sy, float& z01, float& w) {
+            glm::vec4 clip = MVP * glm::vec4(p, 1.0f);
+            w = clip.w;
+            if (w <= 0.0f) return false; // trivially reject behind near plane
+            glm::vec3 ndc = glm::vec3(clip) / w;      // [-1,1]
+            sx = (ndc.x * 0.5f + 0.5f) * (width  - 1);
+            sy = (1.0f - (ndc.y * 0.5f + 0.5f)) * (height - 1); // flip Y
+            z01 = ndc.z * 0.5f + 0.5f;                 // [0,1], smaller = closer
+            return ndc.x >= -1.5f && ndc.x <= 1.5f && ndc.y >= -1.5f && ndc.y <= 1.5f;
+        };
+
+        auto edge = [](const glm::vec2& a, const glm::vec2& b, const glm::vec2& p) -> float {
+            return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+        };
+
+        for (const Face& f : faces) {
+            glm::vec3 v0 = vertices[f.v1];
+            glm::vec3 v1 = vertices[f.v2];
+            glm::vec3 v2 = vertices[f.v3];
+            
+            v0 = {v0.x, v0.z, -v0.y}; // swap y and z for blender
+            v1 = {v1.x, v1.z, -v1.y};
+            v2 = {v2.x, v2.z, -v2.y};
+
+            // Face normal/shading in world space (flat shading)
+            glm::vec3 n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+            if (!std::isfinite(n.x)) continue;
+            glm::vec3 fc = (v0 + v1 + v2) * (1.0f / 3.0f);
+            glm::vec3 L  = glm::normalize(eye - fc);
+            // float shade  = std::clamp(glm::dot(n, L), 0.0f, 1.0f);
+            float shade = glm::dot(n, L) * 0.5f + 0.5f;
+
+            // Back-face cull (optional, keeps front-facing triangles only)
+            if (glm::dot(n, L) <= 0.0f) continue;
+
+            // Project to screen
+            float x0, y0, z0, w0, x1, y1, z1, w1, x2, y2, z2, w2;
+            if (!to_screen(v0, x0, y0, z0, w0)) continue;
+            if (!to_screen(v1, x1, y1, z1, w1)) continue;
+            if (!to_screen(v2, x2, y2, z2, w2)) continue;
+
+            glm::vec2 p0(x0, y0), p1(x1, y1), p2(x2, y2);
+            float area = edge(p0, p1, p2);
+            if (area == 0.0f) continue;
+
+            int minx = std::max(0, int(std::floor(std::min({x0, x1, x2}))));
+            int maxx = std::min(width - 1,  int(std::ceil (std::max({x0, x1, x2}))));
+            int miny = std::max(0, int(std::floor(std::min({y0, y1, y2}))));
+            int maxy = std::min(height - 1, int(std::ceil (std::max({y0, y1, y2}))));
+
+            for (int y = miny; y <= maxy; ++y) {
+                for (int x = minx; x <= maxx; ++x) {
+                    glm::vec2 p(x + 0.5f, y + 0.5f);
+                    float w0b = edge(p1, p2, p) / area;
+                    float w1b = edge(p2, p0, p) / area;
+                    float w2b = edge(p0, p1, p) / area;
+                    if (w0b < 0.0f || w1b < 0.0f || w2b < 0.0f) continue;
+
+                    // Interpolate depth (already perspective-divided -> screen-space)
+                    float z = w0b * z0 + w1b * z1 + w2b * z2;
+                    size_t idx = size_t(y) * size_t(width) + size_t(x);
+                    if (z < zbuf[idx]) {
+                        zbuf[idx] = z;
+                        uint8_t g = (uint8_t)std::lround(255.0f * shade);
+                        rgb[3 * idx + 0] = g;
+                        rgb[3 * idx + 1] = g;
+                        rgb[3 * idx + 2] = g;
+                    }
+                }
+            }
+        }
+
+        // Write binary PPM (P6)
+        // std::ofstream out(filename, std::ios::binary);
+        // if (!out) return false;
+        // out << "P6\n" << width << " " << height << "\n255\n";
+        // out.write(reinterpret_cast<const char*>(rgb.data()), std::streamsize(rgb.size()));
+
+        stbi_write_png(filename, width, height, 3, rgb.data(), width * 3);
+
+        return true;
+    }    
 };

@@ -16,6 +16,7 @@ using h_float3 = nb::ndarray<float, nb::shape<3>, nb::numpy>;
 using h_float3_batch = nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>;
 using h_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
 using h_uint_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
+using h_uint3_batch = nb::ndarray<uint32_t, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>;
 using h_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
 using h_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig>;
 using h_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
@@ -42,9 +43,34 @@ NB_MODULE(bvh_impl, m) {
     ;
 
     nb::class_<Mesh>(m, "Mesh")
-        .def(nb::init<const char *>())
+        .def_static("from_file", [](const char *scene_path) {
+            return Mesh(scene_path);
+        })
+        .def_static("from_data", [](const h_float3_batch &vertices, const h_uint3_batch &faces) {
+            std::vector<glm::vec3> verts_vec(vertices.shape(0));
+            std::memcpy(verts_vec.data(), vertices.data(), sizeof(glm::vec3) * vertices.shape(0));
+
+            std::vector<Face> faces_vec(faces.shape(0));
+            std::memcpy(faces_vec.data(), faces.data(), sizeof(Face) * faces.shape(0));
+
+            return Mesh(std::move(verts_vec), std::move(faces_vec));
+        })
+        .def("get_vertices", [](Mesh& self) {
+            return nb::ndarray<float, nb::numpy>(
+                (float *) self.vertices.data(),
+                {self.vertices.size(), 3}
+            );
+        })
+        .def("get_faces", [](Mesh& self) {
+            return nb::ndarray<uint32_t, nb::numpy>(
+                (uint32_t *) self.faces.data(),
+                {self.faces.size(), 3}
+            );
+        })
+        .def("save_preview", &Mesh::save_preview, nb::arg("filename"), nb::arg("width") = 512, nb::arg("height") = 512)
+        .def("save_to_obj", &Mesh::save_to_obj)
         .def("split_faces", &Mesh::split_faces)
-        .def("bounds", [](Mesh& self) {
+        .def("get_bounds", [](Mesh& self) {
             auto [min, max] = self.bounds();
             return nb::make_tuple(
                 h_float3(&min).cast(),

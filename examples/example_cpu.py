@@ -8,7 +8,7 @@ from bvh import TreeType, TraverseMode
 
 # ==== Load and prepare BVH ==== #
 
-mesh = Mesh("suzanne.fbx", True)
+mesh = Mesh.from_file("suzanne.fbx")
 # mesh.split_faces(0.9)
 
 builder = CPUBuilder(mesh)

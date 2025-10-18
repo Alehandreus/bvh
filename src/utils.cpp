@@ -8,6 +8,9 @@
 #include "utils.h"
 #include "cuda_compat.h"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 using std::cout, std::endl;
 
 // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm

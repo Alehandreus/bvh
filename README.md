@@ -11,14 +11,14 @@ C++ / CUDA implementation of BVH Tree for [neural-intersection](https://github.c
 * **assimp**, **glm**, **openmp**
     * `sudo pacman -S assimp glm openmp`
     * `sudo apt install libassimp-dev libglm-dev` (probably)
-* **CUDA**
+* **CUDA >=11**
     * `sudo pacman -S cuda`
 * `pip install -r requirements.txt`
 * [github.com/madmann91/bvh](https://github.com/madmann91/bvh/)
 
 ## Installation
 
-Building Python package without GPU support is not implemented. A day may come when the necessary CMake logic is added, but it is not this day. This day just run
+Building Python package without GPU support is not implemented. A day may come when the necessary CMake logic is added, but it is not this day. This day (a) replace 120 in `CMakeLists.txt` with [your CC](https://developer.nvidia.com/cuda-gpus) and (b) run
 ```
 pip install .
 ```

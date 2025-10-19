@@ -1,11 +1,11 @@
 ### BVH Tree
-C++ / CUDA implementation of BVH Tree for [neural-intersection](https://github.com/Alehandreus/neural-intersection) repo.
+C++ / CUDA implementation of BVH Tree for [mesh-mapping](https://github.com/Alehandreus/neural-intersection) repo.
 
 ## Features
-* Large primitive splitting as preprocessing step
+* Large primitive splitting
+* Uniform sampling on mesh surface
 * CUDA traversal
 * NumPy / PyTorch bindings
-* NBVH features: neural subtree, ray generation for training
 
 ## Requirements
 * **assimp**, **glm**, **openmp**

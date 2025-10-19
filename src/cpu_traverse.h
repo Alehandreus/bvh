@@ -12,66 +12,15 @@
 
 #include "build.h"
 
-enum class TreeType {
-    BVH,
-    NBVH
-};
-
 struct BVHDataPointers {
     const glm::vec3 *vertices;
     const Face *faces;
     const BVHNode *nodes;
 };
 
-struct StackInfo {
-    int &cur_stack_size;
-    uint32_t *node_stack;
-};
-
-struct StackInfos {
-    int stack_limit;
-    int *cur_stack_sizes;
-    uint32_t *node_stacks;
-
-    CUDA_HOST_DEVICE StackInfo operator[](int i) {
-        return {cur_stack_sizes[i], node_stacks + i * stack_limit};
-    }
-
-    CUDA_HOST_DEVICE void fill(int i, const StackInfo &st) {
-        cur_stack_sizes[i] = st.cur_stack_size;
-        for (int j = 0; j < st.cur_stack_size; j++) {
-            node_stacks[i * stack_limit + j] = st.node_stack[j];
-        }
-    }
-};
-
-struct DepthInfo {
-    int &cur_depth;
-    uint32_t *bbox_idxs;
-};
-
-struct DepthInfos {
-    int depth_limit;
-    int *cur_depths;
-    uint32_t *bbox_idxs;
-
-    CUDA_HOST_DEVICE DepthInfo operator[](int i) {
-        return {cur_depths[i], bbox_idxs + i * depth_limit};
-    }
-};
-
-enum class TraverseMode {
-    CLOSEST_PRIMITIVE,
-    CLOSEST_BBOX,
-    ANOTHER_BBOX
-};
-
 CUDA_HOST_DEVICE HitResult bvh_traverse(
     const Ray &ray,
     const BVHDataPointers &dp,
-    StackInfo &st,
-    TraverseMode mode,
-    TreeType tree_type,
     bool allow_negative = false,
     float closest_t = FLT_MAX
 );
@@ -82,33 +31,14 @@ struct CPUTraverser {
     std::vector<uint32_t> stack;
     std::vector<int> cur_stack_sizes;    
 
-    CPUTraverser(const BVHData &bvh) : bvh(bvh) {}
-
-    void reset_stack(int n_rays) {
-        stack.resize(n_rays * 64);
-        std::fill(stack.begin(), stack.end(), 0);
-
-        cur_stack_sizes.resize(n_rays, 1);
-        std::fill(cur_stack_sizes.begin(), cur_stack_sizes.end(), 1);
-    }
-
-    StackInfos get_stack_infos() {
-        return {64, cur_stack_sizes.data(), stack.data()};
-    }    
+    CPUTraverser(const BVHData &bvh) : bvh(bvh) {} 
 
     BVHDataPointers get_data_pointers() const {
         return {bvh.vertices.data(), bvh.faces.data(), bvh.nodes.data()};
     }
 
-    // traverse single ray, use local stack to be thread-safe
     HitResult closest_primitive_single(const Ray &ray) const {
-        std::vector<uint32_t> smol_node_stack(64, 0);
-        std::vector<int> smol_depth_stack(64, 0);
-        int smol_stack_size = 1;
-
-        StackInfo stack_info = {smol_stack_size, smol_node_stack.data()};
-
-        return bvh_traverse(ray, get_data_pointers(), stack_info, TraverseMode::CLOSEST_PRIMITIVE, TreeType::BVH);
+        return bvh_traverse(ray, get_data_pointers());
     }
 
     bool traverse(
@@ -117,33 +47,21 @@ struct CPUTraverser {
         bool *o_masks,
         float *o_t1,
         float *o_t2,
-        uint32_t *o_node_idx,
+        uint32_t *o_prim_idx,
         glm::vec3 *o_normals,
-        int n_rays,
-        TreeType tree_type,
-        TraverseMode traverse_mode
-    ) {
-        if (traverse_mode != TraverseMode::ANOTHER_BBOX) {
-            reset_stack(n_rays);
-        }
-        
+        int n_rays
+    ) {        
         int alive = false;
 
         Rays rays = {i_ray_origs, i_ray_vecs};
-        StackInfos stack_infos = get_stack_infos();
-        HitResults hits = {o_masks, o_t1, o_t2, o_node_idx, o_normals};
-        if (traverse_mode == TraverseMode::CLOSEST_PRIMITIVE) {
-            hits.t2 = nullptr;
-        } else {
-            hits.normals = nullptr;
-        }
+        HitResults hits = {o_masks, o_t1, o_t2, o_prim_idx, o_normals};
+        hits.t2 = nullptr;
 
         #pragma omp parallel for reduction(||: alive)
         for (int i = 0; i < n_rays; i++) {
             Ray ray = rays[i];
-            StackInfo stack_info = stack_infos[i];
 
-            HitResult hit = bvh_traverse(ray, get_data_pointers(), stack_info, traverse_mode, TreeType::BVH);
+            HitResult hit = bvh_traverse(ray, get_data_pointers());
             o_masks[i] = hit.hit;
             if (hit.hit) {
                 hits.fill(i, hit);

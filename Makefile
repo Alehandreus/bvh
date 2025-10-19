@@ -26,7 +26,7 @@ build_gpu:
 	-x cu \
 	--relocatable-device-code=true \
 	-dlto \
-	-arch=sm_89 \
+	-arch=sm_120 \
 	-Xcudafe \
 		--diag_suppress=esa_on_defaulted_function_ignored \
 	-o bvh.out

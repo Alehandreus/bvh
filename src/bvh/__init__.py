@@ -1,6 +1,5 @@
 import torch
-from .bvh_impl import Mesh, BVHData, CPUBuilder, CPUTraverser, GPUTraverser, TraverseMode, TreeType
-from .bvh_impl import GPURayGen
+from .bvh_impl import Mesh, BVHData, CPUBuilder, CPUTraverser, GPUTraverser
 from .bvh_impl import GPUMeshSampler, MeshSamplerMode
 
 
@@ -11,7 +10,7 @@ class GPURayTracer:
 
     def reserve_arrays(self):
         self.depths    = torch.zeros((self.n_reserved,),    dtype=torch.int,     device="cuda")
-        self.bbox_idxs = torch.zeros((self.n_reserved,),    dtype=torch.uint32,  device="cuda")
+        self.prim_idxs = torch.zeros((self.n_reserved,),    dtype=torch.uint32,  device="cuda")
         self.mask      = torch.zeros((self.n_reserved,),    dtype=torch.bool,    device="cuda")
         self.t1        = torch.zeros((self.n_reserved,),    dtype=torch.float32, device="cuda") + 1e9
         self.t2        = torch.zeros((self.n_reserved,),    dtype=torch.float32, device="cuda") + 1e9
@@ -28,10 +27,8 @@ class GPURayTracer:
             self.mask,
             self.t1,
             self.t2,
-            self.bbox_idxs,
+            self.prim_idxs,
             self.normals,
-            TreeType.BVH,
-            TraverseMode.CLOSEST_PRIMITIVE,
         )
 
         return self.mask, self.t1, self.normals

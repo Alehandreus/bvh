@@ -81,7 +81,7 @@ int main() {
     }
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
 
-    thrust::device_vector<uint32_t> bbox_idxs_d(n_rays);
+    thrust::device_vector<uint32_t> prim_idxs_d(n_rays);
     thrust::device_vector<glm::vec3> ray_origins_d = ray_origins;
     thrust::device_vector<glm::vec3> ray_vectors_d = ray_vectors;
     thrust::device_vector<bool> masks_d = masks;
@@ -102,11 +102,9 @@ int main() {
         masks_d.data().get(),
         t1_d.data().get(),
         t2_d.data().get(),
-        bbox_idxs_d.data().get(),
+        prim_idxs_d.data().get(),
         normals_d.data().get(),
-        n_rays,
-        TreeType::BVH,
-        TraverseMode::CLOSEST_PRIMITIVE
+        n_rays
     );
     cudaDeviceSynchronize();
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;
@@ -129,7 +127,7 @@ int main() {
         }
         pixels[i] = (255 << 24) | ((int)(color * 255) << 16) | ((int)(color * 255) << 8) | (int)(color * 255);
     }
-    save_to_bmp(pixels.data(), img_size, img_size, "output.bmp");
+    stbi_write_png("output.png", img_size, img_size, 4, pixels.data(), img_size * 4);
 
     return 0;
 }

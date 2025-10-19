@@ -63,7 +63,7 @@ int main() {
 
             if (hit.hit) {
                 float att = glm::dot(light_dir, hit.normal) * 0.5 + 0.5;
-                glm::vec3 color = hit.color * att;
+                glm::vec3 color = glm::vec3{1.0, 1.0, 1.0} * att;
                 img[y * img_size + x] = color;
             }
         }
@@ -80,7 +80,7 @@ int main() {
         pixels[i] = (255 << 24) | ((int)(img[i].z * 255) << 16) | ((int)(img[i].y * 255) << 8) | (int)(img[i].x * 255);
     }
     cout << "Saving image..." << endl;
-    save_to_bmp(pixels.data(), img_size, img_size, "output.bmp");
+    stbi_write_png("output.png", img_size, img_size, 4, pixels.data(), img_size * 4);
 
     return 0;
 }

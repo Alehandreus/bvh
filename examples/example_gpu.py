@@ -4,7 +4,6 @@ import torch
 from PIL import Image
 
 from bvh import Mesh, CPUBuilder, GPUTraverser
-from bvh import TreeType, TraverseMode
 from bvh import GPURayTracer
 
 
@@ -24,7 +23,7 @@ n_pixels = img_size * img_size
 
 # ==== Generate rays ==== #
 
-mesh_min, mesh_max = mesh.bounds()
+mesh_min, mesh_max = mesh.get_bounds()
 max_extent = max(mesh_max - mesh_min)
 
 center = (mesh_max + mesh_min) * 0.5

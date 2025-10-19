@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import torch
 from PIL import Image
 
-from bvh import Mesh, CPUBuilder, GPUTraverser
-from bvh import GPURayTracer
+from mesh_utils import Mesh, CPUBuilder, GPUTraverser
+from mesh_utils import GPURayTracer
 
 
 # ==== Load and prepare BVH ==== #

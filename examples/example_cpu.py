@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 
-from bvh import Mesh, CPUBuilder, CPUTraverser
-from bvh import TreeType, TraverseMode
+from mesh_utils import Mesh, CPUBuilder, CPUTraverser
+from mesh_utils import TreeType, TraverseMode
 
 
 # ==== Load and prepare BVH ==== #

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(bvh LANGUAGES CXX CUDA)
+project(mesh_utils LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,14 +33,14 @@ set(CUDA_SOURCES
 
 set_source_files_properties(${CUDA_SOURCES} PROPERTIES LANGUAGE CUDA)
 
-nanobind_add_module(bvh_impl STABLE_ABI ${CPU_SOURCES} ${CUDA_SOURCES})
+nanobind_add_module(mesh_utils_impl STABLE_ABI ${CPU_SOURCES} ${CUDA_SOURCES})
 
-target_compile_options(bvh_impl PRIVATE
+target_compile_options(mesh_utils_impl PRIVATE
   $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=esa_on_defaulted_function_ignored>
 )
 
-set_property(TARGET bvh_impl PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-set_property(TARGET bvh_impl PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+set_property(TARGET mesh_utils_impl PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+set_property(TARGET mesh_utils_impl PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
-target_link_libraries(bvh_impl PRIVATE assimp::assimp)
-install(TARGETS bvh_impl LIBRARY DESTINATION bvh)
+target_link_libraries(mesh_utils_impl PRIVATE assimp::assimp)
+install(TARGETS mesh_utils_impl LIBRARY DESTINATION mesh_utils)

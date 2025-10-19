@@ -1,6 +1,6 @@
 import torch
-from .bvh_impl import Mesh, BVHData, CPUBuilder, CPUTraverser, GPUTraverser
-from .bvh_impl import GPUMeshSampler, MeshSamplerMode
+from .mesh_utils_impl import Mesh, BVHData, CPUBuilder, CPUTraverser, GPUTraverser
+from .mesh_utils_impl import GPUMeshSampler, MeshSamplerMode
 
 
 class GPURayTracer:

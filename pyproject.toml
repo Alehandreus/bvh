@@ -3,9 +3,9 @@ requires = ["scikit-build-core >=0.4.3", "nanobind >=1.3.2"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "bvh"
+name = "mesh_utils"
 version = "0.0.1"
-description = "BVH Tree"
+description = "Mesh Utils"
 readme = "README.md"
 requires-python = ">=3.8"
 authors = [
@@ -16,7 +16,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Alehandreus/bvh"
+Homepage = "https://github.com/Alehandreus/mesh-utils"
 
 [tool.scikit-build]
 minimum-version = "0.4"

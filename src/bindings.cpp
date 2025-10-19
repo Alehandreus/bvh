@@ -28,7 +28,7 @@ using d_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_
 using d_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cuda, nb::c_contig>;
 using d_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 
-NB_MODULE(bvh_impl, m) {
+NB_MODULE(mesh_utils_impl, m) {
     nb::class_<Mesh>(m, "Mesh")
         .def_static("from_file", [](const char *scene_path) {
             return Mesh(scene_path);

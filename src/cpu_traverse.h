@@ -18,18 +18,19 @@ struct BVHDataPointers {
     const BVHNode *nodes;
 };
 
-CUDA_HOST_DEVICE HitResult bvh_traverse(
+CUDA_HOST_DEVICE HitResult ray_query(
     const Ray &ray,
     const BVHDataPointers &dp,
-    bool allow_negative = false,
-    float closest_t = FLT_MAX
+    bool allow_negative = false
+);
+
+CUDA_HOST_DEVICE SDFHitResult point_query(
+    const glm::vec3 &i_point,
+    const BVHDataPointers &i_dp
 );
 
 struct CPUTraverser {
-    const BVHData &bvh;
-
-    std::vector<uint32_t> stack;
-    std::vector<int> cur_stack_sizes;    
+    const BVHData &bvh; 
 
     CPUTraverser(const BVHData &bvh) : bvh(bvh) {} 
 
@@ -38,39 +39,50 @@ struct CPUTraverser {
     }
 
     HitResult closest_primitive_single(const Ray &ray) const {
-        return bvh_traverse(ray, get_data_pointers());
+        return ::ray_query(ray, get_data_pointers());
     }
 
-    bool traverse(
+    void ray_query(
         glm::vec3 *i_ray_origs,
         glm::vec3 *i_ray_vecs,
         bool *o_masks,
-        float *o_t1,
-        float *o_t2,
+        float *o_t,
         uint32_t *o_prim_idx,
         glm::vec3 *o_normals,
         int n_rays
-    ) {        
-        int alive = false;
-
+    ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults hits = {o_masks, o_t1, o_t2, o_prim_idx, o_normals};
-        hits.t2 = nullptr;
+        HitResults hits = {o_masks, o_t, o_prim_idx, o_normals};
 
-        #pragma omp parallel for reduction(||: alive)
+        #pragma omp parallel for
         for (int i = 0; i < n_rays; i++) {
             Ray ray = rays[i];
 
-            HitResult hit = bvh_traverse(ray, get_data_pointers());
+            HitResult hit = ::ray_query(ray, get_data_pointers());
             o_masks[i] = hit.hit;
             if (hit.hit) {
                 hits.fill(i, hit);
             }
-
-            alive = alive || hit.hit;
         }
+    }
 
-        return alive;
+    SDFHitResult point_query_single(const glm::vec3 &point) const {
+        return ::point_query(point, get_data_pointers());
+    }
+
+    void point_query(
+        glm::vec3 *i_points,
+        float *o_t,
+        glm::vec3 *o_closests,
+        int n_points
+    ) {        
+        SDFHitResults hits = {o_t, o_closests};
+
+        #pragma omp parallel for
+        for (int i = 0; i < n_points; i++) {
+            SDFHitResult hit = ::point_query(i_points[i], get_data_pointers());
+            hits.fill(i, hit);
+        }
     }
 
     void generate_camera_rays(

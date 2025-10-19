@@ -83,7 +83,7 @@ BVHData CPUBuilder::build_bvh(int max_depth) {
 }
 
 // thanks gpt-o1
-void BVHData::save_as_obj(const std::string &filename, int max_depth) {
+void BVHData::save_to_obj(const std::string &filename, int max_depth) {
     std::ofstream outFile(filename);
 
     if (!outFile.is_open()) {

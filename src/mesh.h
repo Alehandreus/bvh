@@ -250,12 +250,6 @@ struct Mesh {
             }
         }
 
-        // Write binary PPM (P6)
-        // std::ofstream out(filename, std::ios::binary);
-        // if (!out) return false;
-        // out << "P6\n" << width << " " << height << "\n255\n";
-        // out.write(reinterpret_cast<const char*>(rgb.data()), std::streamsize(rgb.size()));
-
         stbi_write_png(filename, width, height, 3, rgb.data(), width * 3);
 
         return true;

@@ -24,10 +24,6 @@ CUDA_GLOBAL void mesh_sample_surface_uniform_entry(
     curandState local_state = io_rand_states[idx];
 
     // Sample a face based on the face weights
-    // float r = curand_uniform(&local_state) * i_face_weights[n_faces - 1];
-    // int face_idx = thrust::upper_bound(thrust::seq, i_face_weights, i_face_weights + n_faces, r) - i_face_weights;
-    // int face_idx = min((int)(curand_uniform(&local_state) * n_faces), n_faces - 1);
-
     float r = curand_uniform(&local_state);
     int face_idx = thrust::upper_bound(thrust::seq, i_face_weights_prefix_sum, i_face_weights_prefix_sum + n_faces, r) - i_face_weights_prefix_sum;
     face_idx = min(face_idx, n_faces - 1);

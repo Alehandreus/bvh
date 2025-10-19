@@ -25,7 +25,7 @@ int main() {
     cout << "Number of nodes: " << bvh_data.n_nodes << endl;
     cout << "Number of leaves: " << bvh_data.n_leaves << endl;
     cout << "Depth: " << bvh_data.depth << endl;
-    bvh_data.save_as_obj("bvh.obj", 12);
+    bvh_data.save_to_obj("bvh.obj", 12);
     CPUTraverser bvh(bvh_data);
 
     cout << endl;
@@ -59,13 +59,17 @@ int main() {
             float y_f = ((float)y / img_size - 0.5f) * 2;
 
             glm::vec3 dir = cam_dir + x_dir * x_f + y_dir * y_f;
-            HitResult hit = bvh.closest_primitive_single({cam_pos, dir});
+            // HitResult hit = bvh.closest_primitive_single({cam_pos, dir});
 
-            if (hit.hit) {
-                float att = glm::dot(light_dir, hit.normal) * 0.5 + 0.5;
-                glm::vec3 color = glm::vec3{1.0, 1.0, 1.0} * att;
-                img[y * img_size + x] = color;
-            }
+            // if (hit.hit) {
+            //     float att = glm::dot(light_dir, hit.normal) * 0.5 + 0.5;
+            //     glm::vec3 color = glm::vec3{1.0, 1.0, 1.0} * att;
+            //     img[y * img_size + x] = color;
+            // }
+
+            SDFHitResult hit = bvh.point_query_single(cam_pos + dir * 1.0f);
+            std::cout << hit.t << std::endl;
+            img[y * img_size + x] = glm::vec3(glm::dot(cam_dir, hit.closest - cam_pos) / glm::length(cam_dir) / glm::length(hit.closest - cam_pos));
         }
     }
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;

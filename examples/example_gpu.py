@@ -14,7 +14,7 @@ mesh = Mesh.from_file("suzanne.fbx")
 
 builder = CPUBuilder(mesh)
 bvh_data = builder.build_bvh(5)
-bvh_data.save_as_obj("bvh.obj", 25)
+bvh_data.save_to_obj("bvh.obj", 25)
 bvh = GPUTraverser(bvh_data)
 
 img_size = 800

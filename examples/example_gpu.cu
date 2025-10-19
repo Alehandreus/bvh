@@ -29,7 +29,7 @@ int main() {
     cout << "Number of nodes: " << bvh_data.n_nodes << endl;
     cout << "Number of leaves: " << bvh_data.n_leaves << endl;
     cout << "Depth: " << bvh_data.depth << endl;
-    // bvh_data.save_as_obj("bvh.obj", 12);
+    // bvh_data.save_to_obj("bvh.obj", 12);
     GPUTraverser bvh(bvh_data);
 
     cout << endl;
@@ -85,8 +85,7 @@ int main() {
     thrust::device_vector<glm::vec3> ray_origins_d = ray_origins;
     thrust::device_vector<glm::vec3> ray_vectors_d = ray_vectors;
     thrust::device_vector<bool> masks_d = masks;
-    thrust::device_vector<float> t1_d = t;
-    thrust::device_vector<float> t2_d = t;
+    thrust::device_vector<float> t_d = t;
     thrust::device_vector<glm::vec3> normals_d(n_rays);
 
     cout << endl;
@@ -96,12 +95,11 @@ int main() {
 
     cout << "Rendering image..." << endl;
     timer_start();
-    bvh.traverse(
+    bvh.ray_query(
         ray_origins_d.data().get(),
         ray_vectors_d.data().get(),
         masks_d.data().get(),
-        t1_d.data().get(),
-        t2_d.data().get(),
+        t_d.data().get(),
         prim_idxs_d.data().get(),
         normals_d.data().get(),
         n_rays
@@ -111,7 +109,7 @@ int main() {
 
     normals = normals_d;
     masks = masks_d;
-    t = t1_d;
+    t = t_d;
 
     cout << endl;
 

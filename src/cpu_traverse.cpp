@@ -5,23 +5,18 @@
 
 // at the moment cpu and gpu implementations are the same
 // hence this file can be compiled by both nvcc and g++
-CUDA_HOST_DEVICE HitResult bvh_traverse(
+CUDA_HOST_DEVICE HitResult ray_query(
     const Ray &i_ray,
     const BVHDataPointers &i_dp,
-    bool allow_negative,
-    float closest_t
+    bool allow_negative
 ) {
     uint32_t node_stack[TRAVERSE_STACK_SIZE];
     int cur_stack_size = 0;
     node_stack[cur_stack_size++] = 0; // root node
 
-    HitResult closest_hit = {false, FLT_MAX, 0};
+    HitResult closest_hit = {false, FLT_MAX};
 
-    if (closest_t != 0) {
-        closest_hit.t1 = closest_t;
-    }
-
-    closest_hit.t1 = FLT_MAX;
+    closest_hit.t = FLT_MAX;
 
     while (cur_stack_size > 0) {
         uint32_t node_idx = node_stack[--cur_stack_size];
@@ -30,10 +25,10 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
         bool is_leaf = node.is_leaf();
 
         if (is_leaf) {
-            BBox leaf_bbox = node.bbox.get_inflated(0.2);
+            BBox leaf_bbox = node.bbox;
 
             HitResult bbox_hit = ray_box_intersection(i_ray, leaf_bbox, allow_negative);
-            if (bbox_hit.t1 > closest_hit.t1 + TRAVERSE_EPS) {
+            if (bbox_hit.t > closest_hit.t + TRAVERSE_EPS) {
                 continue;
             }
 
@@ -63,7 +58,7 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
             HitResult left_hit = ray_box_intersection(i_ray, i_dp.nodes[left].bbox, allow_negative);
             HitResult right_hit = ray_box_intersection(i_ray, i_dp.nodes[right].bbox, allow_negative);
 
-            if (left_hit.hit && right_hit.hit && (left_hit.t1 < right_hit.t1)) {
+            if (left_hit.hit && right_hit.hit && (left_hit.t < right_hit.t)) {
                 left = left ^ right;
                 right = left ^ right;
                 left = left ^ right;
@@ -83,6 +78,59 @@ CUDA_HOST_DEVICE HitResult bvh_traverse(
         closest_hit.t = 0;
     } else {
         closest_hit.normal = ray_triangle_norm(i_dp.faces[closest_hit.prim_idx], i_dp.vertices);
+    }
+
+    return closest_hit;
+}
+
+
+CUDA_HOST_DEVICE SDFHitResult point_query(
+    const glm::vec3 &i_point,
+    const BVHDataPointers &i_dp
+) {
+    uint32_t node_stack[TRAVERSE_STACK_SIZE];
+    int cur_stack_size = 0;
+    node_stack[cur_stack_size++] = 0; // root node
+
+    SDFHitResult closest_hit = {FLT_MAX};
+
+    while (cur_stack_size > 0) {
+        uint32_t node_idx = node_stack[--cur_stack_size];
+        const BVHNode &node = i_dp.nodes[node_idx];
+
+        bool is_leaf = node.is_leaf();
+
+        if (is_leaf) {
+            float bbox_t = box_df(i_point, node.bbox);
+            if (bbox_t > std::abs(closest_hit.t) + TRAVERSE_EPS) {
+                continue;
+            }
+
+            HitResult node_hit = {false, FLT_MAX};
+            for (int prim_i = node.left_first_prim; prim_i < node.left_first_prim + node.n_prims; prim_i++) {
+                const Face &face = i_dp.faces[prim_i];
+
+                SDFHitResult prim_hit = triangle_sdf(i_point, face, i_dp.vertices);
+
+                if (std::abs(prim_hit.t) < std::abs(closest_hit.t)) {
+                    closest_hit = prim_hit;
+                }
+            }
+        }
+
+        /* ==== non-leaf case ==== */
+        else {
+            uint32_t left = node.left();
+            uint32_t right = node.right();
+
+            if (box_df(i_point, i_dp.nodes[left].bbox) < std::abs(closest_hit.t) + TRAVERSE_EPS) {
+                node_stack[cur_stack_size++] = left;
+            }
+
+            if (box_df(i_point, i_dp.nodes[right].bbox) < std::abs(closest_hit.t) + TRAVERSE_EPS) {
+                node_stack[cur_stack_size++] = right;
+            }
+        }
     }
 
     return closest_hit;

@@ -10,8 +10,6 @@
 
 using std::cout, std::endl;
 
-void save_to_bmp(const unsigned int *pixels, int width, int height, const char* filename);
-
 struct Ray {
     glm::vec3 origin;
     glm::vec3 vector;
@@ -112,40 +110,42 @@ struct Face {
     }
 };
 
+struct SDFHitResult {
+    float t;
+    glm::vec3 closest;
+};
+
+struct SDFHitResults {
+    float *t;
+    glm::vec3 *closests;
+
+    CUDA_HOST_DEVICE void fill(int i, const SDFHitResult &hit) {
+        if (t) t[i] = hit.t;       
+        if (closests) closests[i] = hit.closest;
+    }
+};
+
 struct HitResult {
     bool hit;
-    // float t;
-    // float t1;
-    // float t2;
-    union {
-        float t;
-        struct {
-            float t1;
-            float t2;
-        };
-    };
+    float t;
     uint32_t prim_idx;
     glm::vec3 normal;
 
-    CUDA_HOST_DEVICE HitResult() : hit(false), t1(0) {}
+    CUDA_HOST_DEVICE HitResult() : hit(false), t(0) {}
 
-    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t1(t) {}
-
-    CUDA_HOST_DEVICE HitResult(bool hit, float t1, float t2) : hit(hit), t1(t1), t2(t2) {}
+    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t(t) {}
 };
 
 struct HitResults {
     bool *masks;
-    float *t1;
-    float *t2;
+    float *t;
     uint32_t *prim_idxs;
     glm::vec3 *normals;
 
     CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
-        masks[i] = hit.hit;
-        t1[i] = hit.t1;
-        if (t2) t2[i] = hit.t2;        
-        prim_idxs[i] = hit.prim_idx;
+        if (masks) masks[i] = hit.hit;
+        if (t) t[i] = hit.t;       
+        if (prim_idxs) prim_idxs[i] = hit.prim_idx;
         if (normals) normals[i] = hit.normal;
     }
 };
@@ -166,6 +166,17 @@ CUDA_HOST_DEVICE HitResult ray_box_intersection(
     const Ray &ray,
     const BBox &bbox,
     bool allow_negative = false
+);
+
+CUDA_HOST_DEVICE float box_df(
+    const glm::vec3& p,
+    const BBox& box
+);
+
+CUDA_HOST_DEVICE SDFHitResult triangle_sdf(
+    const glm::vec3 &p,
+    const Face& face,
+    const glm::vec3 *vertices
 );
 
 int timer(bool start);

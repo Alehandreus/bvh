@@ -58,7 +58,7 @@ struct BVHData {
     int n_leaves;
 
     // save leaves as boxes in .obj file
-    void save_as_obj(const std::string &filename, int max_depth = -1);
+    void save_to_obj(const std::string &filename, int max_depth = -1);
 
     int nodes_memory_bytes() {
         return nodes.size() * sizeof(nodes[0]);

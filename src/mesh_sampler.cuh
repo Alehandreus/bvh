@@ -12,7 +12,7 @@
     if (err != cudaSuccess) {                                             \
         std::cerr << "CUDA kernel failed : " << cudaGetErrorString(err);  \
         exit(-1);                                                         \
-    }                                                                    \
+    }                                                                     \
 } while (0)
 
 CUDA_GLOBAL void mesh_sample_surface_uniform_entry(

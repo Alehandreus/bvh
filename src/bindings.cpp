@@ -70,8 +70,8 @@ NB_MODULE(mesh_utils_impl, m) {
         .def_ro("depth", &BVHData::depth)
         .def_ro("n_nodes", &BVHData::n_nodes)
         .def_ro("n_leaves", &BVHData::n_leaves)
-        .def("save_as_obj", [](BVHData& self, const char *filename, int max_depth) {
-            self.save_as_obj(filename, max_depth);
+        .def("save_to_obj", [](BVHData& self, const char *filename, int max_depth) {
+            self.save_to_obj(filename, max_depth);
         })
         .def("nodes_memory_bytes", &BVHData::nodes_memory_bytes)
         .def("nodes_data", [](BVHData& self) {
@@ -97,27 +97,40 @@ NB_MODULE(mesh_utils_impl, m) {
 
     nb::class_<CPUTraverser>(m, "CPUTraverser")
         .def(nb::init<const BVHData&>())
-        .def("traverse", [](
+        .def("ray_query", [](
             CPUTraverser& self,
             h_float3_batch& i_ray_origs,
             h_float3_batch& i_ray_vecs,
             h_bool_batch& o_mask,
-            h_float_batch& o_t1,
-            h_float_batch& o_t2,
+            h_float_batch& o_t,
             h_uint_batch& o_prim_idx,
             h_float3_batch& o_normals
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
-            self.traverse(
+            self.ray_query(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
                 o_mask.data(),
-                o_t1.data(),
-                o_t2.data(),
+                o_t.data(),
                 o_prim_idx.data(),
                 (glm::vec3 *) o_normals.data(),
                 n_rays
+            );
+        })
+        .def("point_query", [](
+            CPUTraverser& self,
+            h_float3_batch& i_points,
+            h_float_batch& o_t,
+            h_float3_batch& o_closests
+        ) {
+            uint32_t n_points = i_points.shape(0);
+
+            self.point_query(
+                (glm::vec3 *) i_points.data(),
+                o_t.data(),
+                (glm::vec3 *) o_closests.data(),
+                n_points
             );
         })
     ;
@@ -144,27 +157,40 @@ NB_MODULE(mesh_utils_impl, m) {
 
     nb::class_<GPUTraverser>(m, "GPUTraverser")
         .def(nb::init<const BVHData&>())
-        .def("traverse", [](
+        .def("ray_query", [](
             GPUTraverser& self,
             d_float3_batch& i_ray_origs,
             d_float3_batch& i_ray_vecs,
             d_bool_batch& o_mask,
-            d_float_batch& o_t1,
-            d_float_batch& o_t2,
+            d_float_batch& o_t,
             d_uint_batch& o_prim_idx,
             d_float3_batch& o_normals
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
-            self.traverse(
+            self.ray_query(
                 (glm::vec3 *) i_ray_origs.data(),
                 (glm::vec3 *) i_ray_vecs.data(),
                 o_mask.data(),
-                o_t1.data(),
-                o_t2.data(),
+                o_t.data(),
                 o_prim_idx.data(),
                 (glm::vec3 *) o_normals.data(),             
                 n_rays
+            );
+        })
+        .def("point_query", [](
+            GPUTraverser& self,
+            d_float3_batch& i_points,
+            d_float_batch& o_t,
+            d_float3_batch& o_closests
+        ) {
+            uint32_t n_points = i_points.shape(0);
+
+            self.point_query(
+                (glm::vec3 *) i_points.data(),
+                o_t.data(),
+                (glm::vec3 *) o_closests.data(),
+                n_points
             );
         })
     ;

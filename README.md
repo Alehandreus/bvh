@@ -14,7 +14,9 @@ C++ / CUDA implementation of BVH Tree for [mesh-mapping](https://github.com/Aleh
 * **CUDA >=11**
     * `sudo pacman -S cuda`
 * `pip install -r requirements.txt`
-* [github.com/madmann91/bvh](https://github.com/madmann91/bvh/)
+* [madmann91/bvh](https://github.com/madmann91/bvh/) builder:
+    * Added automatically when cloning with `--recurse-submodules`
+    * Can be added to cloned repository with `git submodule init && git submodule update`
 
 ## Installation
 

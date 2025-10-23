@@ -54,7 +54,16 @@ NB_MODULE(mesh_utils_impl, m) {
                 {self.faces.size(), 3}
             );
         })
-        .def("save_preview", &Mesh::save_preview, nb::arg("filename"), nb::arg("width") = 512, nb::arg("height") = 512)
+        // .def("save_preview", &Mesh::save_preview, nb::arg("filename"), nb::arg("width") = 512, nb::arg("height") = 512, nb::arg("c"), nb::arg("R"))
+        .def("save_preview", [](Mesh& self, const char *filename, int width, int height, h_float3& c_h, float R) {
+            glm::vec3 c(c_h.data()[0], c_h.data()[1], c_h.data()[2]);
+            return self.save_preview(filename, width, height, c, R);
+        })
+        .def("get_c", [](Mesh& self) {
+            glm::vec3 c = self.get_c();
+            return h_float3(&c).cast();
+        })
+        .def("get_R", &Mesh::get_R)
         .def("save_to_obj", &Mesh::save_to_obj)
         .def("split_faces", &Mesh::split_faces)
         .def("get_bounds", [](Mesh& self) {

@@ -28,7 +28,7 @@ f = mesh.get_faces()
 print(mesh.get_bounds())
 mesh = Mesh.from_data(v, f)
 mesh.save_to_obj("original_mesh.obj")
-mesh.save_preview("original_mesh.png", 800, 800)
+mesh.save_preview("original_mesh.png", 800, 800, mesh.get_c(), mesh.get_R())
 
 builder = CPUBuilder(mesh)
 bvh_data = builder.build_bvh(25)

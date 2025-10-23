@@ -153,18 +153,38 @@ struct Mesh {
         outFile.close();
     }
 
-    bool save_preview(const char *filename, int width, int height) const {
-        if (vertices.empty() || faces.empty() || width <= 0 || height <= 0) return false;
-
-        // Center & scale heuristics
+    glm::vec3 get_c() const {
         glm::vec3 c(0.0f);
         for (auto& v : vertices) c += v;
         c /= float(vertices.size());
-        float R = 0.0f;
-        for (auto& v : vertices) R = std::max(R, glm::length(v - c));
-        if (R <= 0.0f) R = 1.0f;
 
         c = {c.x, c.z, -c.y}; // swap y and z for blender
+
+        return c;
+    }
+
+    float get_R() const {
+        glm::vec3 c = get_c();
+
+        float R = 0.0f;
+        for (auto& v : vertices) R = std::max(R, glm::length(v - glm::vec3(c.x, -c.z, c.y)));
+        if (R <= 0.0f) R = 1.0f;
+
+        return R;
+    }
+
+    bool save_preview(const char *filename, int width, int height, glm::vec3 c, float R) const {
+        if (vertices.empty() || faces.empty() || width <= 0 || height <= 0) return false;
+
+        // Center & scale heuristics
+        // glm::vec3 c(0.0f);
+        // for (auto& v : vertices) c += v;
+        // c /= float(vertices.size());
+        // float R = 0.0f;
+        // for (auto& v : vertices) R = std::max(R, glm::length(v - c));
+        // if (R <= 0.0f) R = 1.0f;
+
+        // c = {c.x, c.z, -c.y}; // swap y and z for blender
 
         // Camera: front-right, slightly above, looking at the mesh center
         glm::vec3 eye = c + glm::normalize(glm::vec3(1.0f, 0.35f, 1.0f)) * (2.2f * R);

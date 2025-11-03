@@ -16,6 +16,8 @@ CUDA_GLOBAL void mesh_sample_surface_uniform_entry(
     int n_faces,
     curandState *io_rand_states,
     glm::vec3 *o_out_points,
+    glm::vec3 *o_out_barycentrics,
+    uint32_t *o_out_face_idxs,    
     int n_points
 ) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -46,4 +48,14 @@ CUDA_GLOBAL void mesh_sample_surface_uniform_entry(
 
     o_out_points[idx] = sampled_point;
     io_rand_states[idx] = local_state;
+
+    // compute barycentric coordinates
+    if (o_out_barycentrics != nullptr) {
+        o_out_barycentrics[idx] = glm::vec3(1 - u - v, u, v);
+    }
+
+    // output face index
+    if (o_out_face_idxs != nullptr) {
+        o_out_face_idxs[idx] = face_idx;
+    }
 }

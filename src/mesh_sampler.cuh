@@ -22,6 +22,8 @@ CUDA_GLOBAL void mesh_sample_surface_uniform_entry(
     int n_faces,
     curandState *io_rand_states,
     glm::vec3 *o_out_points,
+    glm::vec3 *o_out_barycentrics,
+    uint32_t *out_face_idxs,    
     int n_points
 );
 
@@ -84,7 +86,7 @@ struct GPUMeshSampler {
         face_weights_prefix_sum_ = h_face_weights;
     }
 
-    void sample(glm::vec3 *out_points, int n_points) {
+    void sample(glm::vec3 *out_points, glm::vec3 *out_barycentrics, uint32_t *out_face_idxs, int n_points) {
         if (n_points > max_points_) {
             std::cerr << "Error: n_points exceeds max_points_" << std::endl;
             exit(1);
@@ -98,6 +100,8 @@ struct GPUMeshSampler {
                 faces_.size(),
                 rand_states_.data().get(),
                 out_points,
+                out_barycentrics,
+                out_face_idxs,
                 n_points
             );
             CUDA_CHECK_ERRORS();

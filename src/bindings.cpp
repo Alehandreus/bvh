@@ -42,6 +42,12 @@ NB_MODULE(mesh_utils_impl, m) {
 
             return Mesh(std::move(verts_vec), std::move(faces_vec));
         })
+        .def("get_num_vertices", [](Mesh& self) {
+            return self.vertices.size();
+        })
+        .def("get_num_faces", [](Mesh& self) {
+            return self.faces.size();
+        })
         .def("get_vertices", [](Mesh& self) {
             return nb::ndarray<float, nb::numpy>(
                 (float *) self.vertices.data(),
@@ -152,7 +158,13 @@ NB_MODULE(mesh_utils_impl, m) {
 
     nb::class_<GPUMeshSampler>(m, "GPUMeshSampler")
         .def(nb::init<const Mesh&, MeshSamplerMode, int>(), nb::arg("mesh"), nb::arg("mode"), nb::arg("max_points"))
-        .def("sample", [](GPUMeshSampler& self, d_float3_batch& o_points, int n_points) {
+        .def("sample", [](
+            GPUMeshSampler& self,
+            d_float3_batch& o_points,
+            d_float3_batch& o_coords,
+            d_uint_batch& o_face_idxs,
+            int n_points
+        ) {
             if (n_points > self.max_points_) {
                 throw std::runtime_error("n_points exceeds max_points set in constructor");
             }
@@ -160,7 +172,12 @@ NB_MODULE(mesh_utils_impl, m) {
                 throw std::runtime_error("o_points has incorrect shape");
             }
 
-            self.sample((glm::vec3 *) o_points.data(), n_points);
+            self.sample(
+                (glm::vec3 *) o_points.data(),
+                (glm::vec3 *) o_coords.data(),
+                o_face_idxs.data(),
+                n_points
+            );
         })
     ;
 

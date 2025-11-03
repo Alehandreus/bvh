@@ -14,8 +14,10 @@ mesh = Mesh.from_file("suzanne.fbx")
 sampler = GPUMeshSampler(mesh, MeshSamplerMode.SURFACE_UNIFORM, n_points)
 
 points = torch.zeros((n_points, 3), dtype=torch.float32, device="cuda")
+barycentrics = torch.zeros((n_points, 3), dtype=torch.float32, device="cuda")
+face_idxs = torch.zeros((n_points,), dtype=torch.uint32, device="cuda")
 
-sampler.sample(points, n_points)
+sampler.sample(points, barycentrics, face_idxs, n_points)
 
 # create .obj file to visualize the sampled points
 
@@ -42,3 +44,6 @@ bvh.point_query(points, t, closests)
 with open("sampled_points2.obj", "w") as f:
     for p in closests.cpu().numpy():
         f.write(f"v {p[0]} {p[2]} {-p[1]}\n")
+
+for i in range(10):
+    print(f"Point {i}: face_idx: {face_idxs[i].item()}, barycentric: {barycentrics[i].cpu().numpy()}")

@@ -103,6 +103,18 @@ NB_MODULE(mesh_utils_impl, m) {
 
             return nb::make_tuple(min_arr, max_arr);
         })
+        .def("get_faces", [](BVHData& self) {
+            return nb::ndarray<uint32_t, nb::numpy>(
+                (uint32_t *) self.faces.data(),
+                {self.faces.size(), 3}
+            );
+        })
+        .def("get_vertices", [](BVHData& self) {
+            return nb::ndarray<float, nb::numpy>(
+                (float *) self.vertices.data(),
+                {self.vertices.size(), 3}
+            );
+        })
     ;
 
     nb::class_<CPUBuilder>(m, "CPUBuilder")
@@ -208,7 +220,9 @@ NB_MODULE(mesh_utils_impl, m) {
             GPUTraverser& self,
             d_float3_batch& i_points,
             d_float_batch& o_t,
-            d_float3_batch& o_closests
+            d_float3_batch& o_closests,
+            d_float3_batch& o_barycentricses,
+            d_uint_batch& o_face_idxs
         ) {
             uint32_t n_points = i_points.shape(0);
 
@@ -216,6 +230,8 @@ NB_MODULE(mesh_utils_impl, m) {
                 (glm::vec3 *) i_points.data(),
                 o_t.data(),
                 (glm::vec3 *) o_closests.data(),
+                (glm::vec3 *) o_barycentricses.data(),
+                o_face_idxs.data(),
                 n_points
             );
         })

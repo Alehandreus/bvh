@@ -113,15 +113,21 @@ struct Face {
 struct SDFHitResult {
     float t;
     glm::vec3 closest;
+    glm::vec3 barycentrics;
+    uint32_t face_idx;
 };
 
 struct SDFHitResults {
     float *t;
     glm::vec3 *closests;
+    glm::vec3 *barycentricses;
+    uint32_t *face_idxs;
 
     CUDA_HOST_DEVICE void fill(int i, const SDFHitResult &hit) {
         if (t) t[i] = hit.t;       
         if (closests) closests[i] = hit.closest;
+        if (barycentricses) barycentricses[i] = hit.barycentrics;
+        if (face_idxs) face_idxs[i] = hit.face_idx;
     }
 };
 

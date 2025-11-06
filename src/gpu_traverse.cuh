@@ -60,14 +60,15 @@ struct GPUTraverser {
         );
     }
 
-
     void point_query(
         const glm::vec3 *i_points,
         float *o_t,
         glm::vec3 *o_closests,
+        glm::vec3 *o_barycentricses,
+        uint32_t *o_face_idxs,
         int n_points
     ) {
-        SDFHitResults out = {o_t, o_closests};
+        SDFHitResults out = {o_t, o_closests, o_barycentricses, o_face_idxs};
 
         point_query_entry<<<(n_points + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             i_points,

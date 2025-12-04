@@ -14,104 +14,162 @@
 
 using std::cout, std::endl;
 
+
+CUDA_HOST_DEVICE inline glm::vec3 vmake(float x, float y, float z) {
+    return glm::vec3{x, y, z};
+}
+
+
+CUDA_HOST_DEVICE inline glm::vec3 vsub(const glm::vec3 &a, const glm::vec3 &b) {
+    return glm::vec3{a.x - b.x, a.y - b.y, a.z - b.z};
+}
+
+
+CUDA_HOST_DEVICE inline glm::vec3 vadd(const glm::vec3 &a, const glm::vec3 &b) {
+    return glm::vec3{a.x + b.x, a.y + b.y, a.z + b.z};
+}
+
+
+CUDA_HOST_DEVICE inline glm::vec3 vscale(const glm::vec3 &v, float s) {
+    return glm::vec3{v.x * s, v.y * s, v.z * s};
+}
+
+
+CUDA_HOST_DEVICE inline float vdot(const glm::vec3 &a, const glm::vec3 &b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+
+CUDA_HOST_DEVICE inline glm::vec3 vcross(const glm::vec3 &a, const glm::vec3 &b) {
+    return glm::vec3{
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x
+    };
+}
+
+
+CUDA_HOST_DEVICE inline float vlen2(const glm::vec3 &v) {
+    return vdot(v, v);
+}
+
+
+CUDA_HOST_DEVICE inline glm::vec3 vzero() {
+    return glm::vec3{0.0f, 0.0f, 0.0f};
+}
+
+
 // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
 CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
     const Ray &ray,
-    const Face& face,
+    const Face &face,
     const glm::vec3 *vertices,
     bool allow_negative
 ) {
-    float epsilon = 1e-6;
+    const float epsilon = 1e-6f;
 
     const glm::vec3 &a = vertices[face.v1];
     const glm::vec3 &b = vertices[face.v2];
     const glm::vec3 &c = vertices[face.v3];
 
-    glm::vec3 edge1 = b - a;
-    glm::vec3 edge2 = c - a;
-    glm::vec3 ray_cross_e2 = glm::cross(ray.vector, edge2);
-    float det = glm::dot(edge1, ray_cross_e2);
+    glm::vec3 edge1 = vsub(b, a);
+    glm::vec3 edge2 = vsub(c, a);
+
+    glm::vec3 pvec = vcross(ray.vector, edge2);
+    float det = vdot(edge1, pvec);
     if (det > -epsilon && det < epsilon) {
-        return { false, 0 }; // This ray is parallel to this triangle.
-    }        
-
-    float inv_det = 1.0 / det;
-    glm::vec3 s = ray.origin - a;
-    float u = inv_det * glm::dot(s, ray_cross_e2);
-    if ((u < 0 && std::fabs(u) > epsilon) || (u > 1 && std::fabs(u-1) > epsilon)) {
-        return { false, 0 };
+        return {false, 0.0f};
     }
 
-    glm::vec3 s_cross_e1 = glm::cross(s, edge1);
-    float v = inv_det * glm::dot(ray.vector, s_cross_e1);
-    if ((v < 0 && std::fabs(v) > epsilon) || (u + v > 1 && std::fabs(u + v - 1) > epsilon)) {
-        return { false, 0 };
+    float inv_det = 1.0f / det;
+    glm::vec3 tvec = vsub(ray.origin, a);
+    float u = vdot(tvec, pvec) * inv_det;
+    if (u < -epsilon || u > 1.0f + epsilon) {
+        return {false, 0.0f};
     }
 
-    // At this stage we can compute t to find out where the intersection point is on the line.
-    float t = inv_det * glm::dot(edge2, s_cross_e1);
-    if ((t < epsilon) && (!allow_negative)) {
-        return { false, 0 };
+    glm::vec3 qvec = vcross(tvec, edge1);
+    float v = vdot(ray.vector, qvec) * inv_det;
+    if (v < -epsilon || (u + v) > 1.0f + epsilon) {
+        return {false, 0.0f};
     }
 
-    return { true, t };
+    float t = vdot(edge2, qvec) * inv_det;
+    if (!allow_negative && t < epsilon) {
+        return {false, 0.0f};
+    }
+
+    return {true, t};
 }
+
 
 CUDA_HOST_DEVICE glm::vec3 ray_triangle_norm(
     const Face &face,
     const glm::vec3 *vertices
 ) {
-    glm::vec3 n = glm::cross(
-        vertices[face.v2] - vertices[face.v1],
-        vertices[face.v3] - vertices[face.v1]
-    );
-    n = glm::normalize(n);
+    const glm::vec3 &a = vertices[face.v1];
+    const glm::vec3 &b = vertices[face.v2];
+    const glm::vec3 &c = vertices[face.v3];
 
-    return n;
+    glm::vec3 e1 = vsub(b, a);
+    glm::vec3 e2 = vsub(c, a);
+    glm::vec3 n  = vcross(e1, e2);
+
+    float len2 = vlen2(n);
+    const float eps = 1e-12f;
+
+    if (len2 < eps) {
+        return vzero();
+    }
+
+    float invLen = 1.0f / sqrtf(len2);
+    return vscale(n, invLen);
 }
+
 
 CUDA_HOST_DEVICE HitResult ray_box_intersection(
     const Ray &ray,
     const BBox &bbox,
     bool allow_negative
 ) {
-    const float eps = 1e-6;
+    const float eps = 1e-6f;
 
-    Ray ray2 = ray;
-    if (fabs(ray2.vector.x) < eps) {
-        if (ray2.origin.x < bbox.min.x || ray2.origin.x > bbox.max.x) {
-            return {false, 0};
+    float tmin = -FLT_MAX;
+    float tmax =  FLT_MAX;
+
+    auto update_axis = [&](float o, float d, float mn, float mx) -> bool {
+        if (fabsf(d) < eps) {
+            // Ray is parallel to this pair of planes
+            if (o < mn || o > mx) return false; // no intersection
+            return true; // inside slab: no constraint on t from this axis
         }
-        ray2.vector.x = FLT_MAX;
-    }
-    if (fabs(ray.vector.y) < eps) {
-        if (ray2.origin.y < bbox.min.y || ray2.origin.y > bbox.max.y) {
-            return {false, 0};
-        }
-        ray2.vector.y = FLT_MAX;
-    }
-    if (fabs(ray.vector.z) < eps) {
-        if (ray2.origin.z < bbox.min.z || ray2.origin.z > bbox.max.z) {
-            return {false, 0};
-        }
-        ray2.vector.z = FLT_MAX;
-    }
+        float invd = 1.0f / d;
+        float t1 = (mn - o) * invd;
+        float t2 = (mx - o) * invd;
+        if (t1 > t2) { float tmp = t1; t1 = t2; t2 = tmp; }
 
-    glm::vec3 t1 = (bbox.min - ray2.origin) / ray2.vector;
-    glm::vec3 t2 = (bbox.max - ray2.origin) / ray2.vector;
+        if (t1 > tmin) tmin = t1;
+        if (t2 < tmax) tmax = t2;
 
-    glm::vec3 tmin = glm::min(t1, t2);
-    glm::vec3 tmax = glm::max(t1, t2);
+        return tmin <= tmax;
+    };
 
-    float t_enter = glm::max(tmin.x, glm::max(tmin.y, tmin.z));
-    float t_exit = glm::min(tmax.x, glm::min(tmax.y, tmax.z));
+    if (!update_axis(ray.origin.x, ray.vector.x, bbox.min.x, bbox.max.x)) return {false, 0.0f};
+    if (!update_axis(ray.origin.y, ray.vector.y, bbox.min.y, bbox.max.y)) return {false, 0.0f};
+    if (!update_axis(ray.origin.z, ray.vector.z, bbox.min.z, bbox.max.z)) return {false, 0.0f};
 
-    if (t_enter > t_exit || (t_exit < 0 && !allow_negative)) {
-        return {false, 0};
+    // Now tmin = t_enter, tmax = t_exit
+    float t_enter = tmin;
+    float t_exit  = tmax;
+
+    if (!allow_negative) {
+        if (t_exit < 0.0f) return {false, 0.0f};     // box entirely behind ray
+        if (t_enter < 0.0f) t_enter = 0.0f;          // ray starts inside box
     }
 
     return {true, t_enter};
 }
+
 
 // https://iquilezles.org/articles/distfunctions/
 CUDA_HOST_DEVICE float box_df(

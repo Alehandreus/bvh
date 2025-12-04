@@ -3,11 +3,12 @@
 
 #include "cpu_traverse.h"
 
-#ifdef CUDA_ENABLED
+// #ifdef CUDA_ENABLED
+#include <cuda_runtime.h>
 #include <cuda_runtime.h>
 #include "gpu_traverse.cuh"
 #include "mesh_sampler.cuh"
-#endif
+// #endif
 
 namespace nb = nanobind;
 
@@ -23,8 +24,10 @@ using h_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cpu, nb::c_conti
 
 using d_float3_batch = nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>;
 using d_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
-using d_uint_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
+using d_boolN_batch = nb::ndarray<bool, nb::shape<-1, -1>, nb::device::cuda, nb::c_contig>;
 using d_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
+using d_floatN_batch = nb::ndarray<float, nb::shape<-1, -1>, nb::device::cuda, nb::c_contig>;
+using d_uint_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 using d_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cuda, nb::c_contig>;
 using d_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 
@@ -162,7 +165,7 @@ NB_MODULE(mesh_utils_impl, m) {
         })
     ;
 
-    #ifdef CUDA_ENABLED
+    // #ifdef CUDA_ENABLED
     nb::enum_<MeshSamplerMode>(m, "MeshSamplerMode")
         .value("SURFACE_UNIFORM", MeshSamplerMode::SURFACE_UNIFORM)
         .export_values()
@@ -216,6 +219,29 @@ NB_MODULE(mesh_utils_impl, m) {
                 n_rays
             );
         })
+        .def("ray_query_all", [](
+            GPUTraverser& self,
+            d_float3_batch& i_ray_origs,
+            d_float3_batch& i_ray_vecs,
+            d_boolN_batch& o_mask,
+            d_floatN_batch& o_dist,
+            d_uintN_batch& o_prim_idx,          
+            d_uint_batch& o_n_hits,
+            int max_hits_per_ray
+        ) {
+            uint32_t n_rays = i_ray_origs.shape(0);
+
+            self.ray_query_all(
+                (glm::vec3 *) i_ray_origs.data(),
+                (glm::vec3 *) i_ray_vecs.data(),
+                o_mask.data(),
+                o_dist.data(),
+                o_prim_idx.data(),
+                o_n_hits.data(),
+                max_hits_per_ray,
+                n_rays
+            );
+        })        
         .def("point_query", [](
             GPUTraverser& self,
             d_float3_batch& i_points,
@@ -236,5 +262,5 @@ NB_MODULE(mesh_utils_impl, m) {
             );
         })
     ;
-    #endif
+    // #endif
 }

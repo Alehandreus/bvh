@@ -47,7 +47,3 @@ bvh.point_query(points, t, closests, barycentrics, face_idxs2)
 with open("sampled_points2.obj", "w") as f:
     for p in closests.cpu().numpy():
         f.write(f"v {p[0]} {p[2]} {-p[1]}\n")
-
-for i in range(20):
-    print(f"Point {i}: face_idx: {face_idxs[i].item()}, barycentric: {barycentrics[i].cpu().numpy()}")
-    print(f"    t: {t[i].item()}, barycentric: {barycentrics[i].cpu().numpy()}, face_idx: {face_idxs2[i].item()}")

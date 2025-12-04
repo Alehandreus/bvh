@@ -1,5 +1,3 @@
-#pragma once
-
 #include <thrust/device_vector.h>
 #include <thrust/binary_search.h>
 #include <curand_kernel.h>

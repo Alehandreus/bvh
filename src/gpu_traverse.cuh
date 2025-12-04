@@ -23,6 +23,15 @@ CUDA_GLOBAL void point_query_entry(
     int n_points
 );
 
+CUDA_GLOBAL void ray_query_all_entry(
+    const Rays i_rays,
+    const BVHDataPointers i_dp,
+    HitResults o_hits,
+    uint32_t *o_n_hits,
+    int max_hits_per_ray,
+    int n_rays
+);
+
 struct GPUTraverser {
     const BVHData &bvh;
 
@@ -44,13 +53,13 @@ struct GPUTraverser {
         glm::vec3 *i_ray_origs,
         glm::vec3 *i_ray_vecs,
         bool *o_masks,
-        float *o_t,
+        float *o_dists,
         uint32_t *o_prim_idxs,
         glm::vec3 *o_normals,
         int n_rays
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults hits = {o_masks, o_t, o_prim_idxs, o_normals};
+        HitResults hits = {o_masks, o_dists, o_prim_idxs, o_normals};
 
         ray_query_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             rays,
@@ -58,7 +67,38 @@ struct GPUTraverser {
             hits,
             n_rays
         );
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            printf("CUDA Error in ray_query: %s\n", cudaGetErrorString(err));
+        }
     }
+
+    void ray_query_all(
+        glm::vec3 *i_ray_origs,
+        glm::vec3 *i_ray_vecs,
+        bool *o_masks,
+        float *o_dists,
+        uint32_t *o_prim_idxs,
+        uint32_t *o_n_hits,
+        int max_hits_per_ray,
+        int n_rays
+    ) {
+        Rays rays = {i_ray_origs, i_ray_vecs};
+        HitResults hits = {o_masks, o_dists, o_prim_idxs, nullptr};
+
+        ray_query_all_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
+            rays,
+            get_data_pointers(),
+            hits,
+            o_n_hits,
+            max_hits_per_ray,
+            n_rays
+        );
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            printf("CUDA Error in ray_query_all: %s\n", cudaGetErrorString(err));
+        }
+    }    
 
     void point_query(
         const glm::vec3 *i_points,
@@ -76,5 +116,9 @@ struct GPUTraverser {
             out,
             n_points
         );
-    }    
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            printf("CUDA Error in point_query: %s\n", cudaGetErrorString(err));
+        }
+    }
 };

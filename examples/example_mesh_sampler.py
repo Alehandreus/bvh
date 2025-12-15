@@ -26,6 +26,8 @@ face_idxs = torch.zeros((n_points,), dtype=torch.uint32, device="cuda")
 
 sampler.sample(points, barycentrics, face_idxs, n_points)
 
+print(points)
+
 # create .obj file to visualize the sampled points
 with open("sampled_points.obj", "w") as f:
     for p in points.cpu().numpy():

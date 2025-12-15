@@ -64,12 +64,11 @@ d_dirs = torch.from_numpy(dirs).cuda()
 
 fine_ray_tracer = GPURayTracer(fine_bvh_data)
 fine_mask, fine_t1, fine_normals = fine_ray_tracer.trace(d_cam_poses, d_dirs)
-fine_t1[fine_t1 == 1e9] = 0
 
 rough_ray_tracer_all = GPURayTracerAll(rough_bvh_data)
 max_hits_per_ray = 10
+
 mask, t1, prim_idxs, n_hits = rough_ray_tracer_all.trace_all(d_cam_poses, d_dirs, max_hits_per_ray)
-n_hits = n_hits.long()
 
 t1_expanded = t1[:, :max_hits_per_ray]
 fine_t1_expanded = fine_t1[:, None]

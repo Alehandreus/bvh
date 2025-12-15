@@ -111,7 +111,7 @@ CUDA_HOST_DEVICE SDFHitResult point_query(
                 const Face &face = i_dp.faces[prim_i];
 
                 SDFHitResult prim_hit = triangle_sdf(i_point, face, i_dp.vertices);
-                prim_hit.face_idx = prim_i;
+                prim_hit.face_idx = prim_i;             
 
                 if (std::abs(prim_hit.t) < std::abs(closest_hit.t)) {
                     closest_hit = prim_hit;

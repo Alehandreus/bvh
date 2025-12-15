@@ -103,32 +103,28 @@ CUDA_DEVICE void ray_query_all_gpu(
 
     o_n_hits = n_hits_registered;
 
-    // sort o_hits by t
-    thrust::device_ptr<bool> mask_ptr(o_hits.masks);
-    thrust::device_ptr<float> t_ptr(o_hits.t);
-
-    thrust::sort_by_key(
-        thrust::device,
-        t_ptr,
-        t_ptr + n_hits_registered,
-        mask_ptr
-    );
-
-    // if (o_hits.prim_idxs) {
-    //     thrust::device_ptr<uint32_t> prim_idx_ptr(o_hits.prim_idxs);
-    //     thrust::sort_by_key(
-    //         thrust::device,
-    //         t_ptr,
-    //         t_ptr + n_hits_registered,
-    //         prim_idx_ptr
-    //     );
-    // }
-
-    thrust::sort(
-        thrust::device,
-        t_ptr,
-        t_ptr + n_hits_registered
-    );
+    // Manual bubble/insertion sort - no temporary buffers needed
+    // For small n_hits_registered (< 100), this is often faster than thrust
+    for (int i = 1; i < n_hits_registered; i++) {
+        float key_t = o_hits.t[i];
+        bool key_mask = o_hits.masks[i];
+        uint32_t key_prim = o_hits.prim_idxs ? o_hits.prim_idxs[i] : 0;
+        
+        int j = i - 1;
+        while (j >= 0 && o_hits.t[j] > key_t) {
+            o_hits.t[j + 1] = o_hits.t[j];
+            o_hits.masks[j + 1] = o_hits.masks[j];
+            if (o_hits.prim_idxs) {
+                o_hits.prim_idxs[j + 1] = o_hits.prim_idxs[j];
+            }
+            j--;
+        }
+        o_hits.t[j + 1] = key_t;
+        o_hits.masks[j + 1] = key_mask;
+        if (o_hits.prim_idxs) {
+            o_hits.prim_idxs[j + 1] = key_prim;
+        }
+    }
 }
 
 CUDA_GLOBAL void ray_query_all_entry(
@@ -159,6 +155,6 @@ CUDA_GLOBAL void ray_query_all_entry(
         o_hits_moved,
         o_n_hits[i],
         max_hits_per_ray,
-        false
+        true
     );
 }

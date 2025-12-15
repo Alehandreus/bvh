@@ -42,7 +42,12 @@ CUDA_GLOBAL void mesh_sample_surface_uniform_entry(
         v = 1.0f - v;
     }
 
-    glm::vec3 sampled_point = (1 - u - v) * v0 + u * v1 + v * v2;
+    // glm::vec3 sampled_point = (1 - u - v) * v0 + u * v1 + v * v2;
+    glm::vec3 sampled_point = {
+        (1 - u - v) * v0.x + u * v1.x + v * v2.x,
+        (1 - u - v) * v0.y + u * v1.y + v * v2.y,
+        (1 - u - v) * v0.z + u * v1.z + v * v2.z
+    };
 
     o_out_points[idx] = sampled_point;
     io_rand_states[idx] = local_state;

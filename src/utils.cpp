@@ -54,8 +54,42 @@ CUDA_HOST_DEVICE inline float vlen2(const glm::vec3 &v) {
 }
 
 
+CUDA_HOST_DEVICE inline float vlen(const glm::vec3 &v) {
+    return sqrtf(vdot(v, v));
+}
+
+
+CUDA_HOST_DEVICE inline glm::vec3 vmax(const glm::vec3 &a, const glm::vec3 &b) {
+    return glm::vec3{
+        fmaxf(a.x, b.x),
+        fmaxf(a.y, b.y),
+        fmaxf(a.z, b.z)
+    };
+}
+
+
+
+CUDA_HOST_DEVICE inline float dot2(const glm::vec3& v) {
+    return vdot(v, v);
+}
+
+
 CUDA_HOST_DEVICE inline glm::vec3 vzero() {
     return glm::vec3{0.0f, 0.0f, 0.0f};
+}
+
+
+CUDA_HOST_DEVICE inline glm::vec3 vclamp(const glm::vec3 &v, float mn, float mx) {
+    return glm::vec3{
+        fmaxf(mn, fminf(mx, v.x)),
+        fmaxf(mn, fminf(mx, v.y)),
+        fmaxf(mn, fminf(mx, v.z))
+    };
+}
+
+
+CUDA_HOST_DEVICE inline float clamp(float x, float mn, float mx) {
+    return fmaxf(mn, fminf(mx, x));
 }
 
 
@@ -176,27 +210,33 @@ CUDA_HOST_DEVICE float box_df(
     const glm::vec3& p,
     const BBox& box
 ) {
-    glm::vec3 d = glm::max(glm::max(box.min - p, p - box.max), glm::vec3(0.0f));
-    return glm::length(d);
+    // glm::vec3 d = glm::max(glm::max(box.min - p, p - box.max), glm::vec3(0.0f));
+    // return glm::length(d);
+
+    glm::vec3 d = vmax(
+        vmax(vsub(box.min, p), vsub(p, box.max)),
+        vzero()
+    );
+    return vlen(d);
 }
 
-CUDA_HOST_DEVICE inline float dot2(const glm::vec3& v) {
-    return glm::dot(v, v);
-}
 
 CUDA_HOST_DEVICE inline glm::vec3 closest_point_on_segment(
     const glm::vec3& p,
     const glm::vec3& a,
     const glm::vec3& b
 ) {
-    glm::vec3 ab = b - a;
+    glm::vec3 ab = vsub(b, a);
     float denom = dot2(ab);
+
     float t = 0.0f;
     if (denom > 0.0f) {
-        t = glm::clamp(glm::dot(p - a, ab) / denom, 0.0f, 1.0f);
+        t = clamp(vdot(vsub(p, a), ab) / denom, 0.0f, 1.0f);
     }
-    return a + t * ab;
+
+    return vadd(a, vscale(ab, t));
 }
+
 
 // Robust closest-point on triangle (Ericson). Also returns signed distance.
 CUDA_HOST_DEVICE SDFHitResult triangle_sdf(
@@ -208,22 +248,21 @@ CUDA_HOST_DEVICE SDFHitResult triangle_sdf(
     const glm::vec3 &b = vertices[face.v2];
     const glm::vec3 &c = vertices[face.v3];
 
-    const glm::vec3 ab = b - a;
-    const glm::vec3 ac = c - a;
-    const glm::vec3 ap = p - a;
+    const glm::vec3 ab = vsub(b, a);
+    const glm::vec3 ac = vsub(c, a);
+    const glm::vec3 ap = vsub(p, a);
 
-    // Handle degenerate triangles (zero area) by falling back to the closest edge/vertex
-    const glm::vec3 n  = glm::cross(ab, ac);
+    // // Handle degenerate triangles (zero area) by falling back to the closest edge/vertex
+    const glm::vec3 n  = vcross(ab, ac);
     const float n2 = dot2(n);
     if (n2 <= 0.0f) {
-        // collapse to best of the three segments
         glm::vec3 q_ab = closest_point_on_segment(p, a, b);
         glm::vec3 q_bc = closest_point_on_segment(p, b, c);
         glm::vec3 q_ca = closest_point_on_segment(p, c, a);
 
-        float d2_ab = dot2(p - q_ab);
-        float d2_bc = dot2(p - q_bc);
-        float d2_ca = dot2(p - q_ca);
+        float d2_ab = dot2(vsub(p, q_ab));
+        float d2_bc = dot2(vsub(p, q_bc));
+        float d2_ca = dot2(vsub(p, q_ca));
 
         glm::vec3 q = q_ab;
         float d2 = d2_ab;
@@ -231,40 +270,46 @@ CUDA_HOST_DEVICE SDFHitResult triangle_sdf(
         if (d2_bc < d2) { d2 = d2_bc; q = q_bc; }
         if (d2_ca < d2) { d2 = d2_ca; q = q_ca; }
 
-        // No meaningful normal => return unsigned distance; sign = +1
         SDFHitResult out;
-        out.t = glm::sqrt(d2);
+        out.t = sqrtf(d2);
         out.closest = q;
 
-        // find barycentrics
-        glm::vec3 v0 = b - a;
-        glm::vec3 v1 = c - a;
-        glm::vec3 v2 = q - a;
-        float d00 = glm::dot(v0, v0);
-        float d01 = glm::dot(v0, v1);
-        float d11 = glm::dot(v1, v1);
-        float d20 = glm::dot(v2, v0);
-        float d21 = glm::dot(v2, v1);
+        // barycentrics (best-effort; may be unstable if extremely degenerate)
+        glm::vec3 v0 = vsub(b, a);
+        glm::vec3 v1 = vsub(c, a);
+        glm::vec3 v2 = vsub(q, a);
+
+        float d00 = vdot(v0, v0);
+        float d01 = vdot(v0, v1);
+        float d11 = vdot(v1, v1);
+        float d20 = vdot(v2, v0);
+        float d21 = vdot(v2, v1);
+
         float denom = d00 * d11 - d01 * d01;
-        float v = (d11 * d20 - d01 * d21) / denom;
-        float w = (d00 * d21 - d01 * d20) / denom;
-        float u = 1.0f - v - w;
-        out.barycentrics = glm::vec3(u, v, w);
+        if (denom != 0.0f) {
+            float inv = 1.0f / denom;
+            float v = (d11 * d20 - d01 * d21) * inv;
+            float w = (d00 * d21 - d01 * d20) * inv;
+            float u = 1.0f - v - w;
+            out.barycentrics = vmake(u, v, w);
+        } else {
+            out.barycentrics = vmake(1.0f, 0.0f, 0.0f);
+        }
 
         return out;
     }
 
     // ---- Ericson region tests ----
-    float d1 = glm::dot(ab, ap);
-    float d2 = glm::dot(ac, ap);
+    float d1 = vdot(ab, ap);
+    float d2 = vdot(ac, ap);
 
-    glm::vec3 bp = p - b;
-    float d3 = glm::dot(ab, bp);
-    float d4 = glm::dot(ac, bp);
+    glm::vec3 bp = vsub(p, b);
+    float d3 = vdot(ab, bp);
+    float d4 = vdot(ac, bp);
 
-    glm::vec3 cp = p - c;
-    float d5 = glm::dot(ab, cp);
-    float d6 = glm::dot(ac, cp);
+    glm::vec3 cp = vsub(p, c);
+    float d5 = vdot(ab, cp);
+    float d6 = vdot(ac, cp);
 
     glm::vec3 q; // closest point
 
@@ -280,7 +325,7 @@ CUDA_HOST_DEVICE SDFHitResult triangle_sdf(
             float vc = d1 * d4 - d3 * d2;
             if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f) {
                 float v = d1 / (d1 - d3);
-                q = a + v * ab;
+                q = vadd(a, vscale(ab, v));
             } else {
                 // Vertex region C
                 if (d6 >= 0.0f && d5 <= d6) {
@@ -290,20 +335,20 @@ CUDA_HOST_DEVICE SDFHitResult triangle_sdf(
                     float vb = d5 * d2 - d1 * d6;
                     if (vb <= 0.0f && d2 >= 0.0f && d6 <= 0.0f) {
                         float w = d2 / (d2 - d6);
-                        q = a + w * ac;
+                        q = vadd(a, vscale(ac, w));
                     } else {
                         // Edge BC
                         float va = d3 * d6 - d5 * d4;
                         if (va <= 0.0f && (d4 - d3) >= 0.0f && (d5 - d6) >= 0.0f) {
-                            glm::vec3 bc = c - b;
+                            glm::vec3 bc = vsub(c, b);
                             float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
-                            q = b + w * bc;
+                            q = vadd(b, vscale(bc, w));
                         } else {
                             // Inside face region – project to plane
                             float invDen = 1.0f / (va + vb + vc);
                             float v = vb * invDen;
                             float w = vc * invDen;
-                            q = a + v * ab + w * ac;
+                            q = vadd(a, vadd(vscale(ab, v), vscale(ac, w)));
                         }
                     }
                 }
@@ -312,29 +357,36 @@ CUDA_HOST_DEVICE SDFHitResult triangle_sdf(
     }
 
     // Signed distance: sign by triangle plane orientation (two-sided surface)
-    // Negative if p is on the opposite side from the normal (ab x ac).
-    float sd = glm::length(p - q);
-    float side = glm::dot(n, p - q);     // no need to normalize n
+    glm::vec3 pq = vsub(p, q);
+    float sd = vlen(pq);
+    float side = vdot(n, pq); // no need to normalize n
     if (side < 0.0f) sd = -sd;
 
     SDFHitResult out;
     out.t = sd;
     out.closest = q;
 
-    // find barycentrics
-    glm::vec3 v0 = b - a;
-    glm::vec3 v1 = c - a;
-    glm::vec3 v2 = q - a;
-    float d00 = glm::dot(v0, v0);
-    float d01 = glm::dot(v0, v1);
-    float d11 = glm::dot(v1, v1);
-    float d20 = glm::dot(v2, v0);
-    float d21 = glm::dot(v2, v1);
+    // barycentrics
+    glm::vec3 v0 = vsub(b, a);
+    glm::vec3 v1 = vsub(c, a);
+    glm::vec3 v2 = vsub(q, a);
+
+    float d00 = vdot(v0, v0);
+    float d01 = vdot(v0, v1);
+    float d11 = vdot(v1, v1);
+    float d20 = vdot(v2, v0);
+    float d21 = vdot(v2, v1);
+
     float denom = d00 * d11 - d01 * d01;
-    float v = (d11 * d20 - d01 * d21) / denom;
-    float w = (d00 * d21 - d01 * d20) / denom;
-    float u = 1.0f - v - w;
-    out.barycentrics = glm::vec3(u, v, w);
+    if (denom != 0.0f) {
+        float inv = 1.0f / denom;
+        float v = (d11 * d20 - d01 * d21) * inv;
+        float w = (d00 * d21 - d01 * d20) * inv;
+        float u = 1.0f - v - w;
+        out.barycentrics = vmake(u, v, w);
+    } else {
+        out.barycentrics = vmake(1.0f, 0.0f, 0.0f);
+    }
 
     return out;
 }

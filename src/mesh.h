@@ -17,7 +17,7 @@ struct Mesh {
     std::vector<Face> faces;
 
     // https://learnopengl.com/Model-Loading/Model
-    Mesh(const char *scene_path) {
+    Mesh(const char *scene_path, bool swap_yz = false) {
         Assimp::Importer importer;
         const aiScene *scene = importer.ReadFile(scene_path, aiProcess_Triangulate | aiProcess_JoinIdenticalVertices);
         if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
@@ -33,7 +33,11 @@ struct Mesh {
 
             for (int vertex_i = 0; vertex_i < ai_mesh->mNumVertices; vertex_i++) {
                 aiVector3D vertex = ai_mesh->mVertices[vertex_i];
-                vertices.push_back(glm::vec3(vertex.x, vertex.y, vertex.z));
+                if (!swap_yz) {
+                    vertices.push_back(glm::vec3(vertex.x, vertex.y, vertex.z));
+                } else {
+                    vertices.push_back(glm::vec3(vertex.x, vertex.z, -vertex.y));
+                }                
             }
 
             for (int face_i = 0; face_i < ai_mesh->mNumFaces; face_i++) {
@@ -91,7 +95,9 @@ struct Mesh {
 
         float threshold = extents[extents.size() * frac];
 
-        for (int face_i = 0; face_i < faces.size();) {
+        int initial_faces_size = faces.size();
+
+        for (int face_i = 0; face_i < ((frac == 0) ? initial_faces_size : faces.size());) {
             Face face = faces[face_i];
             float extent = face.extent(vertices.data());
 
@@ -159,6 +165,7 @@ struct Mesh {
         c /= float(vertices.size());
 
         c = {c.x, c.z, -c.y}; // swap y and z for blender
+        // c = {c.x, c.y, c.z}; // swap y and z for blender
 
         return c;
     }
@@ -168,6 +175,7 @@ struct Mesh {
 
         float R = 0.0f;
         for (auto& v : vertices) R = std::max(R, glm::length(v - glm::vec3(c.x, -c.z, c.y)));
+        // for (auto& v : vertices) R = std::max(R, glm::length(v - glm::vec3(c.x, c.y, c.z)));
         if (R <= 0.0f) R = 1.0f;
 
         return R;
@@ -218,9 +226,9 @@ struct Mesh {
             glm::vec3 v1 = vertices[f.v2];
             glm::vec3 v2 = vertices[f.v3];
             
-            v0 = {v0.x, v0.z, -v0.y}; // swap y and z for blender
-            v1 = {v1.x, v1.z, -v1.y};
-            v2 = {v2.x, v2.z, -v2.y};
+            // v0 = {v0.x, v0.z, -v0.y}; // swap y and z for blender
+            // v1 = {v1.x, v1.z, -v1.y};
+            // v2 = {v2.x, v2.z, -v2.y};
 
             // Face normal/shading in world space (flat shading)
             glm::vec3 n = glm::normalize(glm::cross(v1 - v0, v2 - v0));

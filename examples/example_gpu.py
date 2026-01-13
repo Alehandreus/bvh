@@ -9,7 +9,7 @@ from mesh_utils import GPURayTracer
 
 # ==== Load and prepare BVH ==== #
 
-mesh = Mesh.from_file("suzanne.fbx")
+mesh = Mesh.from_file("/home/me/Downloads/chess.fbx", False)
 # mesh.split_faces(0.9)
 
 builder = CPUBuilder(mesh)
@@ -17,7 +17,7 @@ bvh_data = builder.build_bvh(5)
 bvh_data.save_to_obj("bvh.obj", 25)
 bvh = GPUTraverser(bvh_data)
 
-img_size = 800
+img_size = 2048
 n_pixels = img_size * img_size
 
 

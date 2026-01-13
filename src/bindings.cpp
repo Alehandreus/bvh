@@ -33,8 +33,8 @@ using d_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cuda, nb::c_cont
 
 NB_MODULE(mesh_utils_impl, m) {
     nb::class_<Mesh>(m, "Mesh")
-        .def_static("from_file", [](const char *scene_path) {
-            return Mesh(scene_path);
+        .def_static("from_file", [](const char *scene_path, bool swap_yz) {
+            return Mesh(scene_path, swap_yz);
         })
         .def_static("from_data", [](const h_float3_batch &vertices, const h_uint3_batch &faces) {
             std::vector<glm::vec3> verts_vec(vertices.shape(0));

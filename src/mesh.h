@@ -5,6 +5,7 @@
 #include <assimp/postprocess.h>
 
 #include <fstream>
+#include <limits>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -19,7 +20,8 @@ struct Mesh {
     // https://learnopengl.com/Model-Loading/Model
     Mesh(const char *scene_path, bool swap_yz = false) {
         Assimp::Importer importer;
-        const aiScene *scene = importer.ReadFile(scene_path, aiProcess_Triangulate | aiProcess_JoinIdenticalVertices);
+        unsigned int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_PreTransformVertices;
+        const aiScene *scene = importer.ReadFile(scene_path, flags);
         if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
             cout << "Assimp error: " << importer.GetErrorString() << endl;
             exit(1);
@@ -30,19 +32,32 @@ struct Mesh {
 
         for (int mesh_i = 0; mesh_i < scene->mNumMeshes; mesh_i++) {
             aiMesh *ai_mesh = scene->mMeshes[mesh_i];
+            uint32_t base_index = static_cast<uint32_t>(vertices.size());
+            if (vertices.size() > std::numeric_limits<uint32_t>::max() ||
+                ai_mesh->mNumVertices > std::numeric_limits<uint32_t>::max() - base_index) {
+                std::cerr << "Mesh has too many vertices for uint32 indices." << std::endl;
+                exit(1);
+            }
 
             for (int vertex_i = 0; vertex_i < ai_mesh->mNumVertices; vertex_i++) {
                 aiVector3D vertex = ai_mesh->mVertices[vertex_i];
                 if (!swap_yz) {
                     vertices.push_back(glm::vec3(vertex.x, vertex.y, vertex.z));
                 } else {
-                    vertices.push_back(glm::vec3(vertex.x, vertex.z, -vertex.y));
-                }                
+                    vertices.push_back(glm::vec3(vertex.x, -vertex.z, vertex.y));
+                }
             }
 
             for (int face_i = 0; face_i < ai_mesh->mNumFaces; face_i++) {
                 aiFace face = ai_mesh->mFaces[face_i];
-                faces.push_back({face.mIndices[0], face.mIndices[1], face.mIndices[2]});
+                if (face.mNumIndices < 3) {
+                    continue;
+                }
+                faces.push_back({
+                    base_index + face.mIndices[0],
+                    base_index + face.mIndices[1],
+                    base_index + face.mIndices[2]
+                });
             }
         }
 
@@ -164,8 +179,8 @@ struct Mesh {
         for (auto& v : vertices) c += v;
         c /= float(vertices.size());
 
-        c = {c.x, c.z, -c.y}; // swap y and z for blender
-        // c = {c.x, c.y, c.z}; // swap y and z for blender
+        // c = {c.x, c.z, -c.y}; // swap y and z for blender
+        c = {c.x, c.y, c.z};
 
         return c;
     }
@@ -174,8 +189,8 @@ struct Mesh {
         glm::vec3 c = get_c();
 
         float R = 0.0f;
-        for (auto& v : vertices) R = std::max(R, glm::length(v - glm::vec3(c.x, -c.z, c.y)));
-        // for (auto& v : vertices) R = std::max(R, glm::length(v - glm::vec3(c.x, c.y, c.z)));
+        // for (auto& v : vertices) R = std::max(R, glm::length(v - glm::vec3(c.x, -c.z, c.y)));
+        for (auto& v : vertices) R = std::max(R, glm::length(v - glm::vec3(c.x, c.y, c.z)));
         if (R <= 0.0f) R = 1.0f;
 
         return R;
@@ -192,7 +207,7 @@ struct Mesh {
         // for (auto& v : vertices) R = std::max(R, glm::length(v - c));
         // if (R <= 0.0f) R = 1.0f;
 
-        // c = {c.x, c.z, -c.y}; // swap y and z for blender
+        // c = {c.x, c.z, -c.y};
 
         // Camera: front-right, slightly above, looking at the mesh center
         glm::vec3 eye = c + glm::normalize(glm::vec3(1.0f, 0.35f, 1.0f)) * (2.2f * R);

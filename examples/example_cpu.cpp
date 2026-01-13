@@ -4,7 +4,7 @@ int main() {
     /* ==== Load and prepare BVH ==== */
 
     cout << "Loading scene..." << endl;
-    Mesh mesh("suzanne.fbx");
+    Mesh mesh("/home/me/Downloads/chess.fbx");
     cout << "Number of vertices: " << mesh.vertices.size() << endl;
     cout << "Number of faces: " << mesh.faces.size() << endl;
 
@@ -59,17 +59,16 @@ int main() {
             float y_f = ((float)y / img_size - 0.5f) * 2;
 
             glm::vec3 dir = cam_dir + x_dir * x_f + y_dir * y_f;
-            // HitResult hit = bvh.closest_primitive_single({cam_pos, dir});
+            HitResult hit = bvh.closest_primitive_single({cam_pos, dir});
 
-            // if (hit.hit) {
-            //     float att = glm::dot(light_dir, hit.normal) * 0.5 + 0.5;
-            //     glm::vec3 color = glm::vec3{1.0, 1.0, 1.0} * att;
-            //     img[y * img_size + x] = color;
-            // }
+            if (hit.hit) {
+                float att = glm::dot(light_dir, hit.normal) * 0.5 + 0.5;
+                glm::vec3 color = glm::vec3{1.0, 1.0, 1.0} * att;
+                img[y * img_size + x] = color;
+            }
 
-            SDFHitResult hit = bvh.point_query_single(cam_pos + dir * 1.0f);
-            std::cout << hit.t << std::endl;
-            img[y * img_size + x] = glm::vec3(glm::dot(cam_dir, hit.closest - cam_pos) / glm::length(cam_dir) / glm::length(hit.closest - cam_pos));
+            // SDFHitResult hit = bvh.point_query_single(cam_pos + dir * 1.0f);
+            // img[y * img_size + x] = glm::vec3(glm::dot(cam_dir, hit.closest - cam_pos) / glm::length(cam_dir) / glm::length(hit.closest - cam_pos));
         }
     }
     cout << "Elapsed time: " << timer_stop() << " ms" << endl;

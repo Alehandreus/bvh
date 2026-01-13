@@ -8,7 +8,7 @@ int main() {
     /* ==== Load and prepare BVH ==== */
 
     cout << "Loading scene..." << endl;
-    Mesh mesh("suzanne.fbx");
+    Mesh mesh("/home/me/Downloads/chess.fbx");
     cout << "Number of vertices: " << mesh.vertices.size() << endl;
     cout << "Number of faces: " << mesh.faces.size() << endl;
 

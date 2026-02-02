@@ -9,7 +9,7 @@ from mesh_utils import GPURayTracer
 
 # ==== Load and prepare BVH ==== #
 
-mesh = Mesh.from_file("/home/me/Downloads/chess.fbx", True)
+mesh = Mesh.from_file("/home/me/brain/mesh-mapping/models/petmonster_orig.stl", False)
 # mesh.split_faces(0.9)
 
 builder = CPUBuilder(mesh)
@@ -56,10 +56,10 @@ d_cam_poses = torch.from_numpy(cam_poses).cuda()
 d_dirs = torch.from_numpy(dirs).cuda()
 
 
-# ==== Run BVH ==== #b
+# ==== Run BVH ==== #
 
 ray_tracer = GPURayTracer(bvh_data)
-mask, t1, normals = ray_tracer.trace(d_cam_poses, d_dirs)
+mask, t1, normals, uvs = ray_tracer.trace(d_cam_poses, d_dirs)
 t1[t1 == 1e9] = 0
 
 y = d_cam_poses + d_dirs * t1[:, None]

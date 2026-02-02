@@ -14,6 +14,7 @@ namespace nb = nanobind;
 
 using h_float3 = nb::ndarray<float, nb::shape<3>, nb::numpy>;
 
+using h_float2_batch = nb::ndarray<float, nb::shape<-1, 2>, nb::device::cpu, nb::c_contig>;
 using h_float3_batch = nb::ndarray<float, nb::shape<-1, 3>, nb::device::cpu, nb::c_contig>;
 using h_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
 using h_uint_batch = nb::ndarray<uint32_t, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
@@ -22,6 +23,7 @@ using h_float_batch = nb::ndarray<float, nb::shape<-1>, nb::device::cpu, nb::c_c
 using h_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cpu, nb::c_contig>;
 using h_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cpu, nb::c_contig>;
 
+using d_float2_batch = nb::ndarray<float, nb::shape<-1, 2>, nb::device::cuda, nb::c_contig>;
 using d_float3_batch = nb::ndarray<float, nb::shape<-1, 3>, nb::device::cuda, nb::c_contig>;
 using d_bool_batch = nb::ndarray<bool, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 using d_boolN_batch = nb::ndarray<bool, nb::shape<-1, -1>, nb::device::cuda, nb::c_contig>;
@@ -45,6 +47,18 @@ NB_MODULE(mesh_utils_impl, m) {
 
             return Mesh(std::move(verts_vec), std::move(faces_vec));
         })
+        .def_static("from_data_with_uvs", [](const h_float3_batch &vertices, const h_uint3_batch &faces, const h_float2_batch &uvs) {
+            std::vector<glm::vec3> verts_vec(vertices.shape(0));
+            std::memcpy(verts_vec.data(), vertices.data(), sizeof(glm::vec3) * vertices.shape(0));
+
+            std::vector<Face> faces_vec(faces.shape(0));
+            std::memcpy(faces_vec.data(), faces.data(), sizeof(Face) * faces.shape(0));
+
+            std::vector<glm::vec2> uvs_vec(uvs.shape(0));
+            std::memcpy(uvs_vec.data(), uvs.data(), sizeof(glm::vec2) * uvs.shape(0));
+
+            return Mesh(std::move(verts_vec), std::move(faces_vec), std::move(uvs_vec));
+        })
         .def("get_num_vertices", [](Mesh& self) {
             return self.vertices.size();
         })
@@ -63,7 +77,15 @@ NB_MODULE(mesh_utils_impl, m) {
                 {self.faces.size(), 3}
             );
         })
-        // .def("save_preview", &Mesh::save_preview, nb::arg("filename"), nb::arg("width") = 512, nb::arg("height") = 512, nb::arg("c"), nb::arg("R"))
+        .def("has_uvs", [](Mesh& self) {
+            return !self.uvs.empty();
+        })
+        .def("get_uvs", [](Mesh& self) {
+            return nb::ndarray<float, nb::numpy>(
+                (float *) self.uvs.data(),
+                {self.uvs.size(), 2}
+            );
+        })
         .def("save_preview", [](Mesh& self, const char *filename, int width, int height, h_float3& c_h, float R) {
             glm::vec3 c(c_h.data()[0], c_h.data()[1], c_h.data()[2]);
             return self.save_preview(filename, width, height, c, R);
@@ -118,6 +140,15 @@ NB_MODULE(mesh_utils_impl, m) {
                 {self.vertices.size(), 3}
             );
         })
+        .def("has_uvs", [](BVHData& self) {
+            return !self.uvs.empty();
+        })
+        .def("get_uvs", [](BVHData& self) {
+            return nb::ndarray<float, nb::numpy>(
+                (float *) self.uvs.data(),
+                {self.uvs.size(), 2}
+            );
+        })
     ;
 
     nb::class_<CPUBuilder>(m, "CPUBuilder")
@@ -134,7 +165,8 @@ NB_MODULE(mesh_utils_impl, m) {
             h_bool_batch& o_mask,
             h_float_batch& o_t,
             h_uint_batch& o_prim_idx,
-            h_float3_batch& o_normals
+            h_float3_batch& o_normals,
+            h_float2_batch& o_uvs
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
@@ -145,6 +177,7 @@ NB_MODULE(mesh_utils_impl, m) {
                 o_t.data(),
                 o_prim_idx.data(),
                 (glm::vec3 *) o_normals.data(),
+                (glm::vec2 *) o_uvs.data(),
                 n_rays
             );
         })
@@ -205,7 +238,8 @@ NB_MODULE(mesh_utils_impl, m) {
             d_bool_batch& o_mask,
             d_float_batch& o_t,
             d_uint_batch& o_prim_idx,
-            d_float3_batch& o_normals
+            d_float3_batch& o_normals,
+            d_float2_batch& o_uvs
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
@@ -215,7 +249,8 @@ NB_MODULE(mesh_utils_impl, m) {
                 o_mask.data(),
                 o_t.data(),
                 o_prim_idx.data(),
-                (glm::vec3 *) o_normals.data(),             
+                (glm::vec3 *) o_normals.data(),
+                (glm::vec2 *) o_uvs.data(),
                 n_rays
             );
         })

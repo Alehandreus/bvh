@@ -78,6 +78,14 @@ CUDA_HOST_DEVICE HitResult ray_query(
         closest_hit.t = 0;
     } else {
         closest_hit.normal = ray_triangle_norm(i_dp.faces[closest_hit.prim_idx], i_dp.vertices);
+
+        if (i_dp.uvs) {
+            const Face &face = i_dp.faces[closest_hit.prim_idx];
+            float w = 1.0f - closest_hit.bary_u - closest_hit.bary_v;
+            closest_hit.uv = w * i_dp.uvs[face.v1]
+                           + closest_hit.bary_u * i_dp.uvs[face.v2]
+                           + closest_hit.bary_v * i_dp.uvs[face.v3];
+        }
     }
 
     return closest_hit;

@@ -50,6 +50,7 @@ struct BVHNode {
 
 struct BVHData {
     std::vector<glm::vec3> vertices;
+    std::vector<glm::vec2> uvs;
     std::vector<Face> faces;
     std::vector<BVHNode> nodes;
 
@@ -89,9 +90,10 @@ private:
 
 struct CPUBuilder {
     std::vector<glm::vec3> vertices;
+    std::vector<glm::vec2> uvs;
     std::vector<Face> faces;
 
-    CPUBuilder(const Mesh &mesh) : vertices(mesh.vertices), faces(mesh.faces) {}
+    CPUBuilder(const Mesh &mesh) : vertices(mesh.vertices), uvs(mesh.uvs), faces(mesh.faces) {}
 
     BVHData build_bvh(int max_depth);
     void split_node(BVHData & bvh, uint32_t node, int cur_depth, int max_depth);

@@ -14,6 +14,7 @@ class GPURayTracer:
         mask      = torch.zeros((n_rays,),    dtype=torch.bool,    device="cuda")
         t         = torch.zeros((n_rays,),    dtype=torch.float32, device="cuda") + 1e9
         normals   = torch.zeros((n_rays, 3),  dtype=torch.float32, device="cuda")
+        uvs       = torch.zeros((n_rays, 2),  dtype=torch.float32, device="cuda")
 
         self.bvh_traverser.ray_query(
             cam_poses,
@@ -22,11 +23,12 @@ class GPURayTracer:
             t,
             prim_idxs,
             normals,
+            uvs,
         )
 
         # t[t >= 1e9] = 0
 
-        return mask, t, normals
+        return mask, t, normals, uvs
 
 
 class GPURayTracerAll:

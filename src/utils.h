@@ -136,10 +136,14 @@ struct HitResult {
     float t;
     uint32_t prim_idx;
     glm::vec3 normal;
+    float bary_u, bary_v;
+    glm::vec2 uv;
 
-    CUDA_HOST_DEVICE HitResult() : hit(false), t(0) {}
+    CUDA_HOST_DEVICE HitResult() : hit(false), t(0), bary_u(0), bary_v(0), uv(0) {}
 
-    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t(t) {}
+    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t(t), bary_u(0), bary_v(0), uv(0) {}
+
+    CUDA_HOST_DEVICE HitResult(bool hit, float t, float bary_u, float bary_v) : hit(hit), t(t), bary_u(bary_u), bary_v(bary_v), uv(0) {}
 };
 
 struct HitResults {
@@ -147,12 +151,14 @@ struct HitResults {
     float *t;
     uint32_t *prim_idxs;
     glm::vec3 *normals;
+    glm::vec2 *uvs;
 
     CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
         if (masks) masks[i] = hit.hit;
-        if (t) t[i] = hit.t;       
+        if (t) t[i] = hit.t;
         if (prim_idxs) prim_idxs[i] = hit.prim_idx;
         if (normals) normals[i] = hit.normal;
+        if (uvs) uvs[i] = hit.uv;
     }
 };
 

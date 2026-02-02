@@ -58,8 +58,9 @@ prim_idxs = np.zeros((cam_poses.shape[0],), dtype=np.uint32)
 mask = np.zeros((cam_poses.shape[0],), dtype=np.bool_)
 t = np.zeros((cam_poses.shape[0],), dtype=np.float32) + 1e9
 normals = np.zeros((cam_poses.shape[0], 3), dtype=np.float32)
+uvs = np.zeros((cam_poses.shape[0], 2), dtype=np.float32)
 
-bvh.ray_query(cam_poses, dirs, mask, t, prim_idxs, normals)
+bvh.ray_query(cam_poses, dirs, mask, t, prim_idxs, normals, uvs)
 
 # ==== Visualize ==== #
 

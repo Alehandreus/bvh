@@ -36,6 +36,7 @@ struct GPUTraverser {
     const BVHData &bvh;
 
     thrust::device_vector<glm::vec3> vertices;
+    thrust::device_vector<glm::vec2> uvs;
     thrust::device_vector<Face> faces;
     thrust::device_vector<BVHNode> nodes;
 
@@ -43,10 +44,13 @@ struct GPUTraverser {
         vertices = bvh.vertices;
         faces = bvh.faces;
         nodes = bvh.nodes;
+        if (!bvh.uvs.empty()) {
+            uvs = bvh.uvs;
+        }
     }
 
     BVHDataPointers get_data_pointers() const {
-        return {vertices.data().get(), faces.data().get(), nodes.data().get()};
+        return {vertices.data().get(), faces.data().get(), nodes.data().get(), uvs.empty() ? nullptr : uvs.data().get()};
     }
 
     void ray_query(
@@ -56,10 +60,11 @@ struct GPUTraverser {
         float *o_dists,
         uint32_t *o_prim_idxs,
         glm::vec3 *o_normals,
+        glm::vec2 *o_uvs,
         int n_rays
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults hits = {o_masks, o_dists, o_prim_idxs, o_normals};
+        HitResults hits = {o_masks, o_dists, o_prim_idxs, o_normals, o_uvs};
 
         ray_query_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             rays,
@@ -84,7 +89,7 @@ struct GPUTraverser {
         int n_rays
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults hits = {o_masks, o_dists, o_prim_idxs, nullptr};
+        HitResults hits = {o_masks, o_dists, o_prim_idxs, nullptr, nullptr};
 
         ray_query_all_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             rays,

@@ -15,6 +15,7 @@
 
 struct Mesh {
     std::vector<glm::vec3> vertices;
+    std::vector<glm::vec2> uvs;
     std::vector<Face> faces;
 
     // https://learnopengl.com/Model-Loading/Model
@@ -39,12 +40,19 @@ struct Mesh {
                 exit(1);
             }
 
+            bool has_uvs = ai_mesh->mTextureCoords[0] != nullptr;
+
             for (int vertex_i = 0; vertex_i < ai_mesh->mNumVertices; vertex_i++) {
                 aiVector3D vertex = ai_mesh->mVertices[vertex_i];
                 if (!swap_yz) {
                     vertices.push_back(glm::vec3(vertex.x, vertex.y, vertex.z));
                 } else {
                     vertices.push_back(glm::vec3(vertex.x, -vertex.z, vertex.y));
+                }
+
+                if (has_uvs) {
+                    aiVector3D uv = ai_mesh->mTextureCoords[0][vertex_i];
+                    uvs.push_back(glm::vec2(uv.x, uv.y));
                 }
             }
 
@@ -64,7 +72,8 @@ struct Mesh {
         // normalize_sphere();
     }
 
-    Mesh(const std::vector<glm::vec3> vertices, const std::vector<Face> faces) : vertices(std::move(vertices)), faces(std::move(faces)) {}
+    Mesh(const std::vector<glm::vec3> vertices, const std::vector<Face> faces, const std::vector<glm::vec2> uvs = {})
+        : vertices(std::move(vertices)), faces(std::move(faces)), uvs(std::move(uvs)) {}
 
     void print_stats() {
         cout << vertices.size() << " vertices; " << faces.size() << " faces" << endl; // why are vertices duplicated ????
@@ -134,6 +143,15 @@ struct Mesh {
                 vertices.push_back(mid1);
                 vertices.push_back(mid2);
                 vertices.push_back(mid3);
+
+                if (!uvs.empty()) {
+                    glm::vec2 uv_mid1 = (uvs[face[0]] + uvs[face[1]]) / 2.0f;
+                    glm::vec2 uv_mid2 = (uvs[face[1]] + uvs[face[2]]) / 2.0f;
+                    glm::vec2 uv_mid3 = (uvs[face[2]] + uvs[face[0]]) / 2.0f;
+                    uvs.push_back(uv_mid1);
+                    uvs.push_back(uv_mid2);
+                    uvs.push_back(uv_mid3);
+                }
             } else {
                 face_i++;
             }

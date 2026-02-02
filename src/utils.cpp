@@ -133,7 +133,7 @@ CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
         return {false, 0.0f};
     }
 
-    return {true, t};
+    return {true, t, u, v};
 }
 
 

@@ -22,7 +22,6 @@ build_gpu:
 	-Ibvh/src/ \
 	-lassimp \
 	-std=c++20 \
-	-O3 \
 	-x cu \
 	--relocatable-device-code=true \
 	-dlto \

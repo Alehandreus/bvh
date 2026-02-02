@@ -21,7 +21,8 @@ CUDA_GLOBAL void ray_query_entry(
     const Rays i_rays,
     const BVHDataPointers i_dp,
     HitResults o_out,
-    int n_rays
+    int n_rays,
+    bool allow_negative
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_rays) {
@@ -30,7 +31,7 @@ CUDA_GLOBAL void ray_query_entry(
 
     Ray ray = i_rays[i];
 
-    HitResult hit = ray_query(ray, i_dp, true);
+    HitResult hit = ray_query(ray, i_dp, allow_negative);
     o_out.fill(i, hit);
 }
 
@@ -133,7 +134,8 @@ CUDA_GLOBAL void ray_query_all_entry(
     HitResults o_hits,
     uint32_t *o_n_hits,
     int max_hits_per_ray,
-    int n_rays
+    int n_rays,
+    bool allow_negative
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_rays) {
@@ -155,6 +157,6 @@ CUDA_GLOBAL void ray_query_all_entry(
         o_hits_moved,
         o_n_hits[i],
         max_hits_per_ray,
-        true
+        allow_negative
     );
 }

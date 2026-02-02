@@ -7,7 +7,7 @@ class GPURayTracer:
     def __init__(self, bvh_data):
         self.bvh_traverser = GPUTraverser(bvh_data)
 
-    def trace(self, cam_poses, dirs):
+    def trace(self, cam_poses, dirs, allow_negative=False):
         n_rays = cam_poses.shape[0]
 
         prim_idxs = torch.zeros((n_rays,),    dtype=torch.uint32,  device="cuda")
@@ -24,6 +24,7 @@ class GPURayTracer:
             prim_idxs,
             normals,
             uvs,
+            allow_negative,
         )
 
         # t[t >= 1e9] = 0
@@ -35,14 +36,14 @@ class GPURayTracerAll:
     def __init__(self, bvh_data):
         self.bvh_traverser = GPUTraverser(bvh_data)
 
-    def trace_all(self, cam_poses, dirs, max_hits_per_ray):
+    def trace_all(self, cam_poses, dirs, max_hits_per_ray, allow_negative=False):
         n_rays = cam_poses.shape[0]
-    
+
         prim_idxs = torch.zeros((n_rays, max_hits_per_ray), dtype=torch.uint32,  device="cuda")
         mask      = torch.zeros((n_rays, max_hits_per_ray), dtype=torch.bool,    device="cuda")
-        t         = torch.zeros((n_rays, max_hits_per_ray), dtype=torch.float32, device="cuda") + 1e9    
+        t         = torch.zeros((n_rays, max_hits_per_ray), dtype=torch.float32, device="cuda") + 1e9
         n_hits    = torch.zeros((n_rays,),                  dtype=torch.uint32,  device="cuda")
-        
+
         self.bvh_traverser.ray_query_all(
             cam_poses,
             dirs,
@@ -51,6 +52,7 @@ class GPURayTracerAll:
             prim_idxs,
             n_hits,
             max_hits_per_ray,
+            allow_negative,
         )
 
         # t[t >= 1e9] = 0

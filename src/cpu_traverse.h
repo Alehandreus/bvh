@@ -59,7 +59,8 @@ struct CPUTraverser {
         uint32_t *o_prim_idx,
         glm::vec3 *o_normals,
         glm::vec2 *o_uvs,
-        int n_rays
+        int n_rays,
+        bool allow_negative = false
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
         HitResults hits = {o_masks, o_t, o_prim_idx, o_normals, o_uvs};
@@ -68,7 +69,7 @@ struct CPUTraverser {
         for (int i = 0; i < n_rays; i++) {
             Ray ray = rays[i];
 
-            HitResult hit = ::ray_query(ray, get_data_pointers());
+            HitResult hit = ::ray_query(ray, get_data_pointers(), allow_negative);
             o_masks[i] = hit.hit;
             if (hit.hit) {
                 hits.fill(i, hit);

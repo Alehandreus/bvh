@@ -166,7 +166,8 @@ NB_MODULE(mesh_utils_impl, m) {
             h_float_batch& o_t,
             h_uint_batch& o_prim_idx,
             h_float3_batch& o_normals,
-            h_float2_batch& o_uvs
+            h_float2_batch& o_uvs,
+            bool allow_negative
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
@@ -178,9 +179,11 @@ NB_MODULE(mesh_utils_impl, m) {
                 o_prim_idx.data(),
                 (glm::vec3 *) o_normals.data(),
                 (glm::vec2 *) o_uvs.data(),
-                n_rays
+                n_rays,
+                allow_negative
             );
-        })
+        }, nb::arg("i_ray_origs"), nb::arg("i_ray_vecs"), nb::arg("o_mask"), nb::arg("o_t"),
+           nb::arg("o_prim_idx"), nb::arg("o_normals"), nb::arg("o_uvs"), nb::arg("allow_negative") = false)
         .def("point_query", [](
             CPUTraverser& self,
             h_float3_batch& i_points,
@@ -239,7 +242,8 @@ NB_MODULE(mesh_utils_impl, m) {
             d_float_batch& o_t,
             d_uint_batch& o_prim_idx,
             d_float3_batch& o_normals,
-            d_float2_batch& o_uvs
+            d_float2_batch& o_uvs,
+            bool allow_negative
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
@@ -251,18 +255,21 @@ NB_MODULE(mesh_utils_impl, m) {
                 o_prim_idx.data(),
                 (glm::vec3 *) o_normals.data(),
                 (glm::vec2 *) o_uvs.data(),
-                n_rays
+                n_rays,
+                allow_negative
             );
-        })
+        }, nb::arg("i_ray_origs"), nb::arg("i_ray_vecs"), nb::arg("o_mask"), nb::arg("o_t"),
+           nb::arg("o_prim_idx"), nb::arg("o_normals"), nb::arg("o_uvs"), nb::arg("allow_negative") = false)
         .def("ray_query_all", [](
             GPUTraverser& self,
             d_float3_batch& i_ray_origs,
             d_float3_batch& i_ray_vecs,
             d_boolN_batch& o_mask,
             d_floatN_batch& o_dist,
-            d_uintN_batch& o_prim_idx,          
+            d_uintN_batch& o_prim_idx,
             d_uint_batch& o_n_hits,
-            int max_hits_per_ray
+            int max_hits_per_ray,
+            bool allow_negative
         ) {
             uint32_t n_rays = i_ray_origs.shape(0);
 
@@ -274,9 +281,11 @@ NB_MODULE(mesh_utils_impl, m) {
                 o_prim_idx.data(),
                 o_n_hits.data(),
                 max_hits_per_ray,
-                n_rays
+                n_rays,
+                allow_negative
             );
-        })        
+        }, nb::arg("i_ray_origs"), nb::arg("i_ray_vecs"), nb::arg("o_mask"), nb::arg("o_dist"),
+           nb::arg("o_prim_idx"), nb::arg("o_n_hits"), nb::arg("max_hits_per_ray"), nb::arg("allow_negative") = false)        
         .def("point_query", [](
             GPUTraverser& self,
             d_float3_batch& i_points,

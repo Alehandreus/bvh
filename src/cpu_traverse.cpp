@@ -1,4 +1,5 @@
 #include "cpu_traverse.h"
+#include "utils.h"
 
 #define TRAVERSE_EPS 0.00001f
 #define TRAVERSE_STACK_SIZE 64
@@ -8,7 +9,9 @@
 CUDA_HOST_DEVICE HitResult ray_query(
     const Ray &i_ray,
     const BVHDataPointers &i_dp,
-    bool allow_negative
+    bool allow_negative,
+    bool allow_backward,
+    bool allow_forward
 ) {
     uint32_t node_stack[TRAVERSE_STACK_SIZE];
     int cur_stack_size = 0;
@@ -37,6 +40,15 @@ CUDA_HOST_DEVICE HitResult ray_query(
                 const Face &face = i_dp.faces[prim_i];
 
                 HitResult prim_hit = ray_triangle_intersection(i_ray, face, i_dp.vertices, allow_negative);
+
+                glm::vec3 normal = ray_triangle_norm(face, i_dp.vertices);
+                float facing = vdot(normal, i_ray.vector);
+                if (facing > 0.0f && !allow_backward) {
+                    continue;
+                }
+                if (facing < 0.0f && !allow_forward) {
+                    continue;
+                }
 
                 if (prim_hit.hit && prim_hit.t < node_hit.t) {
                     prim_hit.prim_idx = prim_i;

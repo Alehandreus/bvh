@@ -4,7 +4,7 @@ import torch
 
 from mesh_utils import Mesh, CPUBuilder, GPURayTracer
 
-mesh = Mesh.from_file("/home/me/brain/mesh-mapping/models/petmonster_orig.stl", False)
+mesh = Mesh.from_file("/home/me/brain/mesh-mapping/models/dragon_outer_2000.fbx", False)
 builder = CPUBuilder(mesh)
 bvh_data = builder.build_bvh(5)
 tracer = GPURayTracer(bvh_data)

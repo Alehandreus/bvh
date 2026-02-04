@@ -191,6 +191,10 @@ CUDA_HOST_DEVICE SDFHitResult triangle_sdf(
     const glm::vec3 *vertices
 );
 
+CUDA_HOST_DEVICE inline float vdot(const glm::vec3 &a, const glm::vec3 &b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
 int timer(bool start);
 void timer_start();
 int timer_stop();

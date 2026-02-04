@@ -30,7 +30,9 @@ struct BVHDataPointers {
 CUDA_HOST_DEVICE HitResult ray_query(
     const Ray &ray,
     const BVHDataPointers &dp,
-    bool allow_negative = false
+    bool allow_negative = false,
+    bool allow_backward = true,
+    bool allow_forward = true
 );
 
 CUDA_HOST_DEVICE SDFHitResult point_query(
@@ -47,8 +49,8 @@ struct CPUTraverser {
         return {bvh.vertices.data(), bvh.faces.data(), bvh.nodes.data(), bvh.uvs.empty() ? nullptr : bvh.uvs.data()};
     }
 
-    HitResult closest_primitive_single(const Ray &ray) const {
-        return ::ray_query(ray, get_data_pointers());
+    HitResult closest_primitive_single(const Ray &ray, bool allow_negative = false, bool allow_backward = true, bool allow_forward = true) const {
+        return ::ray_query(ray, get_data_pointers(), allow_negative, allow_backward, allow_forward);
     }
 
     void ray_query(
@@ -60,7 +62,9 @@ struct CPUTraverser {
         glm::vec3 *o_normals,
         glm::vec2 *o_uvs,
         int n_rays,
-        bool allow_negative = false
+        bool allow_negative = false,
+        bool allow_backward = true,
+        bool allow_forward = true
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
         HitResults hits = {o_masks, o_t, o_prim_idx, o_normals, o_uvs};
@@ -69,7 +73,7 @@ struct CPUTraverser {
         for (int i = 0; i < n_rays; i++) {
             Ray ray = rays[i];
 
-            HitResult hit = ::ray_query(ray, get_data_pointers(), allow_negative);
+            HitResult hit = ::ray_query(ray, get_data_pointers(), allow_negative, allow_backward, allow_forward);
             o_masks[i] = hit.hit;
             if (hit.hit) {
                 hits.fill(i, hit);

@@ -35,9 +35,9 @@ CUDA_HOST_DEVICE inline glm::vec3 vscale(const glm::vec3 &v, float s) {
 }
 
 
-CUDA_HOST_DEVICE inline float vdot(const glm::vec3 &a, const glm::vec3 &b) {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-}
+// CUDA_HOST_DEVICE inline float vdot(const glm::vec3 &a, const glm::vec3 &b) {
+//     return a.x * b.x + a.y * b.y + a.z * b.z;
+// }
 
 
 CUDA_HOST_DEVICE inline glm::vec3 vcross(const glm::vec3 &a, const glm::vec3 &b) {

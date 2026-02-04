@@ -14,7 +14,9 @@ CUDA_GLOBAL void ray_query_entry(
     const BVHDataPointers i_dp,
     HitResults o_hits,
     int n_rays,
-    bool allow_negative
+    bool allow_negative,
+    bool allow_backward,
+    bool allow_forward
 );
 
 CUDA_GLOBAL void point_query_entry(
@@ -31,7 +33,9 @@ CUDA_GLOBAL void ray_query_all_entry(
     uint32_t *o_n_hits,
     int max_hits_per_ray,
     int n_rays,
-    bool allow_negative
+    bool allow_negative,
+    bool allow_backward,
+    bool allow_forward
 );
 
 struct GPUTraverser {
@@ -64,7 +68,9 @@ struct GPUTraverser {
         glm::vec3 *o_normals,
         glm::vec2 *o_uvs,
         int n_rays,
-        bool allow_negative = false
+        bool allow_negative = false,
+        bool allow_backward = true,
+        bool allow_forward = true
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
         HitResults hits = {o_masks, o_dists, o_prim_idxs, o_normals, o_uvs};
@@ -74,7 +80,9 @@ struct GPUTraverser {
             get_data_pointers(),
             hits,
             n_rays,
-            allow_negative
+            allow_negative,
+            allow_backward,
+            allow_forward
         );
         cudaError_t err = cudaGetLastError();
         if (err != cudaSuccess) {
@@ -91,7 +99,9 @@ struct GPUTraverser {
         uint32_t *o_n_hits,
         int max_hits_per_ray,
         int n_rays,
-        bool allow_negative = false
+        bool allow_negative = false,
+        bool allow_backward = true,
+        bool allow_forward = true
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
         HitResults hits = {o_masks, o_dists, o_prim_idxs, nullptr, nullptr};
@@ -103,7 +113,9 @@ struct GPUTraverser {
             o_n_hits,
             max_hits_per_ray,
             n_rays,
-            allow_negative
+            allow_negative,
+            allow_backward,
+            allow_forward
         );
         cudaError_t err = cudaGetLastError();
         if (err != cudaSuccess) {

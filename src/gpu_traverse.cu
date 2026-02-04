@@ -22,7 +22,9 @@ CUDA_GLOBAL void ray_query_entry(
     const BVHDataPointers i_dp,
     HitResults o_out,
     int n_rays,
-    bool allow_negative
+    bool allow_negative,
+    bool allow_backward,
+    bool allow_forward
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_rays) {
@@ -31,7 +33,7 @@ CUDA_GLOBAL void ray_query_entry(
 
     Ray ray = i_rays[i];
 
-    HitResult hit = ray_query(ray, i_dp, allow_negative);
+    HitResult hit = ray_query(ray, i_dp, allow_negative, allow_backward, allow_forward);
     o_out.fill(i, hit);
 }
 
@@ -58,7 +60,9 @@ CUDA_DEVICE void ray_query_all_gpu(
     HitResults o_hits,
     uint32_t &o_n_hits,
     int max_hits,
-    bool allow_negative
+    bool allow_negative,
+    bool allow_backward,
+    bool allow_forward
 ) {
     uint32_t node_stack[TRAVERSE_STACK_SIZE];
     int cur_stack_size = 0;
@@ -79,6 +83,15 @@ CUDA_DEVICE void ray_query_all_gpu(
 
                 HitResult prim_hit = ray_triangle_intersection(i_ray, face, i_dp.vertices, allow_negative);
                 prim_hit.prim_idx = prim_i;
+
+                glm::vec3 normal = ray_triangle_norm(face, i_dp.vertices);
+                float facing = vdot(normal, i_ray.vector);
+                if (facing > 0.0f && !allow_backward) {
+                    continue;
+                }
+                if (facing < 0.0f && !allow_forward) {
+                    continue;
+                }
 
                 if (prim_hit.hit) {
                     o_hits.fill(n_hits_registered++, prim_hit);
@@ -135,7 +148,9 @@ CUDA_GLOBAL void ray_query_all_entry(
     uint32_t *o_n_hits,
     int max_hits_per_ray,
     int n_rays,
-    bool allow_negative
+    bool allow_negative,
+    bool allow_backward,
+    bool allow_forward
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n_rays) {
@@ -157,6 +172,8 @@ CUDA_GLOBAL void ray_query_all_entry(
         o_hits_moved,
         o_n_hits[i],
         max_hits_per_ray,
-        allow_negative
+        allow_negative,
+        allow_backward,
+        allow_forward
     );
 }

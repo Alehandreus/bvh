@@ -71,8 +71,19 @@ CUDA_DEVICE glm::vec3 sampleTextureGPU(
     glm::vec3 c1 = glm::mix(c01, c11, tx);
     glm::vec3 result = glm::mix(c0, c1, ty);
 
-    // Convert from sRGB to linear
-    return srgbToLinear(result);
+    size_t idx = (y0 * texture.width + x0) * 4;
+    result = glm::vec3(
+        texture.pixels[idx + 0] / 255.0f,  // R
+        texture.pixels[idx + 1] / 255.0f,  // G
+        texture.pixels[idx + 2] / 255.0f   // B
+    );
+
+    return result;
+
+    // return glm::vec3(0.3, 0.6, 0.9);  // DEBUG OVERRIDE
+
+    // // Convert from sRGB to linear
+    // return srgbToLinear(result);
 }
 
 CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states) {

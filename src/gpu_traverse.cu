@@ -4,13 +4,10 @@
 #include <thrust/execution_policy.h>
 
 #include "cpu_traverse.h"
-
+#include "utils.h"
 #include "gpu_traverse.cuh"
 
-#define EPS 1e-6
-
-// Debug flag - set by kernel for specific rays
-CUDA_DEVICE bool g_debug_sample = false;
+#define EPS 1e-8
 
 // GPU texture sampling implementation
 CUDA_DEVICE glm::vec3 sampleTextureGPU(
@@ -19,7 +16,7 @@ CUDA_DEVICE glm::vec3 sampleTextureGPU(
 ) {
     // Handle empty texture
     if (!texture.pixels || texture.width == 0 || texture.height == 0) {
-        return glm::vec3(1.0f);  // Default white (matches CPU behavior)
+        return glm::vec3(1.0f);  // Default white
     }
 
     // Wrap UV coordinates to [0, 1)
@@ -42,14 +39,6 @@ CUDA_DEVICE glm::vec3 sampleTextureGPU(
     float tx = x - x0;
     float ty = y - y0;
 
-    // Debug: print raw pixel values
-    if (g_debug_sample) {
-        size_t idx = (y0 * texture.width + x0) * 4;
-        printf("  sampleTextureGPU: uv=(%.3f,%.3f) -> pixel(%d,%d), idx=%zu\n", u, v, x0, y0, idx);
-        printf("  sampleTextureGPU: raw RGBA = [%d, %d, %d, %d]\n",
-               texture.pixels[idx+0], texture.pixels[idx+1], texture.pixels[idx+2], texture.pixels[idx+3]);
-    }
-
     // Fetch pixel helper
     auto fetchPixel = [&](int xi, int yi) -> glm::vec3 {
         size_t idx = (yi * texture.width + xi) * 4;
@@ -67,22 +56,25 @@ CUDA_DEVICE glm::vec3 sampleTextureGPU(
     glm::vec3 c11 = fetchPixel(x1, y1);
 
     // Bilinear interpolation
-    glm::vec3 c0 = glm::mix(c00, c10, tx);
-    glm::vec3 c1 = glm::mix(c01, c11, tx);
-    glm::vec3 result = glm::mix(c0, c1, ty);
-
-    size_t idx = (y0 * texture.width + x0) * 4;
-    result = glm::vec3(
-        texture.pixels[idx + 0] / 255.0f,  // R
-        texture.pixels[idx + 1] / 255.0f,  // G
-        texture.pixels[idx + 2] / 255.0f   // B
-    );
+    glm::vec3 c0 = {
+        c00.x * (1 - tx) + c10.x * tx,
+        c00.y * (1 - tx) + c10.y * tx,
+        c00.z * (1 - tx) + c10.z * tx
+    };
+    glm::vec3 c1 = {
+        c01.x * (1 - tx) + c11.x * tx,
+        c01.y * (1 - tx) + c11.y * tx,
+        c01.z * (1 - tx) + c11.z * tx
+    };
+    glm::vec3 result = {
+        c0.x * (1 - ty) + c1.x * ty,
+        c0.y * (1 - ty) + c1.y * ty,
+        c0.z * (1 - ty) + c1.z * ty
+    };
 
     return result;
 
-    // return glm::vec3(0.3, 0.6, 0.9);  // DEBUG OVERRIDE
-
-    // // Convert from sRGB to linear
+    // do not convert from sRGB to linear
     // return srgbToLinear(result);
 }
 
@@ -115,50 +107,23 @@ CUDA_GLOBAL void ray_query_entry(
 
     HitResult hit = ray_query(ray, i_dp, allow_negative, allow_backward, allow_forward);
 
-    // Debug: Print texture info from first thread only
-    if (i == 0) {
-        printf("GPU Kernel: n_textures=%d, materials=%p, texture_views=%p, uvs=%p\n",
-               n_textures, (void*)materials, (void*)texture_views, (void*)i_dp.uvs);
-        if (texture_views && n_textures > 0) {
-            printf("GPU Kernel: texture[0]: width=%d, height=%d, pixels=%p\n",
-                   texture_views[0].width, texture_views[0].height,
-                   (void*)texture_views[0].pixels);
-        }
-    }
-
     // Sample texture color on GPU
     if (hit.hit && materials && texture_views && i_dp.uvs) {
         const Face &face = i_dp.faces[hit.prim_idx];
-        if (i == 320000) {  // Pick a ray in the middle that likely hits
-            printf("GPU Kernel: Ray %d hit face.material_idx=%d, uv=(%.3f, %.3f)\n",
-                   i, face.material_idx, hit.uv.x, hit.uv.y);
-        }
         if (face.material_idx >= 0) {
             const MaterialDeviceView& mat = materials[face.material_idx];
 
             // Use texture color if available, otherwise use base color
             if (mat.texture_id >= 0 && mat.texture_id < n_textures) {
-                g_debug_sample = (i == 320000);
                 hit.color = sampleTextureGPU(
                     texture_views[mat.texture_id],
                     hit.uv.x,
                     hit.uv.y
                 );
-                g_debug_sample = false;
-                if (i == 320000) {
-                    printf("GPU Kernel: Ray %d sampled color=(%.3f, %.3f, %.3f)\n",
-                           i, hit.color.r, hit.color.g, hit.color.b);
-                }
             } else {
                 hit.color = mat.base_color;
-                if (i == 320000) {
-                    printf("GPU Kernel: Ray %d using base_color (no texture)\n", i);
-                }
             }
         }
-    } else if (hit.hit && i == 320000) {
-        printf("GPU Kernel: Ray %d hit but skipping color - materials=%p, texture_views=%p, uvs=%p\n",
-               i, (void*)materials, (void*)texture_views, (void*)i_dp.uvs);
     }
 
     o_out.fill(i, hit);

@@ -15,26 +15,6 @@
 using std::cout, std::endl;
 
 
-CUDA_HOST_DEVICE inline glm::vec3 vmake(float x, float y, float z) {
-    return glm::vec3{x, y, z};
-}
-
-
-CUDA_HOST_DEVICE inline glm::vec3 vsub(const glm::vec3 &a, const glm::vec3 &b) {
-    return glm::vec3{a.x - b.x, a.y - b.y, a.z - b.z};
-}
-
-
-CUDA_HOST_DEVICE inline glm::vec3 vadd(const glm::vec3 &a, const glm::vec3 &b) {
-    return glm::vec3{a.x + b.x, a.y + b.y, a.z + b.z};
-}
-
-
-CUDA_HOST_DEVICE inline glm::vec3 vscale(const glm::vec3 &v, float s) {
-    return glm::vec3{v.x * s, v.y * s, v.z * s};
-}
-
-
 // CUDA_HOST_DEVICE inline float vdot(const glm::vec3 &a, const glm::vec3 &b) {
 //     return a.x * b.x + a.y * b.y + a.z * b.z;
 // }
@@ -100,7 +80,7 @@ CUDA_HOST_DEVICE HitResult ray_triangle_intersection(
     const glm::vec3 *vertices,
     bool allow_negative
 ) {
-    const float epsilon = 1e-6f;
+    const float epsilon = 1e-8f;
 
     const glm::vec3 &a = vertices[face.v1];
     const glm::vec3 &b = vertices[face.v2];
@@ -166,7 +146,7 @@ CUDA_HOST_DEVICE HitResult ray_box_intersection(
     const BBox &bbox,
     bool allow_negative
 ) {
-    const float eps = 1e-6f;
+    const float eps = 1e-8f;
 
     float tmin = -FLT_MAX;
     float tmax =  FLT_MAX;

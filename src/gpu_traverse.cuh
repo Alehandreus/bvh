@@ -54,11 +54,6 @@ struct GPUTraverser {
     std::vector<thrust::device_vector<uint8_t>> texture_pixels;  // Owned pixel data
 
     GPUTraverser(const BVHData &bvh) : bvh(bvh) {
-        printf("GPUTraverser: uploading %zu vertices, %zu faces, %zu nodes\n",
-               bvh.vertices.size(), bvh.faces.size(), bvh.nodes.size());
-        printf("GPUTraverser: %zu UVs, %zu materials, %zu textures\n",
-               bvh.uvs.size(), bvh.materials.size(), bvh.textures.size());
-
         vertices = bvh.vertices;
         faces = bvh.faces;
         nodes = bvh.nodes;
@@ -72,9 +67,6 @@ struct GPUTraverser {
             for (size_t i = 0; i < bvh.materials.size(); i++) {
                 mat_views[i].base_color = bvh.materials[i].base_color;
                 mat_views[i].texture_id = bvh.materials[i].texture_id;
-                printf("GPUTraverser: Material %zu: texture_id=%d, base_color=(%.2f, %.2f, %.2f)\n",
-                       i, mat_views[i].texture_id,
-                       mat_views[i].base_color.r, mat_views[i].base_color.g, mat_views[i].base_color.b);
             }
             materials = mat_views;
         }
@@ -86,8 +78,6 @@ struct GPUTraverser {
             // First, upload ALL pixel data
             for (size_t i = 0; i < bvh.textures.size(); i++) {
                 const Texture& tex = bvh.textures[i];
-                printf("GPUTraverser: Uploading texture %zu: %dx%d (%zu bytes)\n",
-                       i, tex.width, tex.height, tex.pixels.size());
                 texture_pixels[i] = tex.pixels;
             }
 

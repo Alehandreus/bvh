@@ -2,7 +2,7 @@
 #include "utils.h"
 #include "texture_sample.h"
 
-#define TRAVERSE_EPS 0.00001f
+#define TRAVERSE_EPS 1e-8
 #define TRAVERSE_STACK_SIZE 64
 
 // at the moment cpu and gpu implementations are the same

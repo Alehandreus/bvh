@@ -42,9 +42,9 @@ NB_MODULE(mesh_utils_impl, m) {
     ;
 
     nb::class_<Mesh>(m, "Mesh")
-        .def_static("from_file", [](const char *scene_path, bool swap_yz) {
-            return Mesh(scene_path, swap_yz);
-        })
+        .def_static("from_file", [](const char *scene_path, bool swap_yz, float scale) {
+            return Mesh(scene_path, swap_yz, scale);
+        }, nb::arg("scene_path"), nb::arg("swap_yz") = false, nb::arg("scale") = 1.0f)
         .def_static("from_data", [](const h_float3_batch &vertices, const h_uint3_batch &faces) {
             std::vector<glm::vec3> verts_vec(vertices.shape(0));
             std::memcpy(verts_vec.data(), vertices.data(), sizeof(glm::vec3) * vertices.shape(0));

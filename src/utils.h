@@ -200,6 +200,22 @@ CUDA_HOST_DEVICE inline float vdot(const glm::vec3 &a, const glm::vec3 &b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+CUDA_HOST_DEVICE inline glm::vec3 vmake(float x, float y, float z) {
+    return glm::vec3{x, y, z};
+}
+
+CUDA_HOST_DEVICE inline glm::vec3 vsub(const glm::vec3 &a, const glm::vec3 &b) {
+    return glm::vec3{a.x - b.x, a.y - b.y, a.z - b.z};
+}
+
+CUDA_HOST_DEVICE inline glm::vec3 vadd(const glm::vec3 &a, const glm::vec3 &b) {
+    return glm::vec3{a.x + b.x, a.y + b.y, a.z + b.z};
+}
+
+CUDA_HOST_DEVICE inline glm::vec3 vscale(const glm::vec3 &v, float s) {
+    return glm::vec3{v.x * s, v.y * s, v.z * s};
+}
+
 int timer(bool start);
 void timer_start();
 int timer_stop();

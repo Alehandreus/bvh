@@ -25,7 +25,7 @@ struct Mesh {
     std::vector<Material> materials;
     std::vector<Texture> textures;
 
-    Mesh(const char *scene_path, bool swap_yz = false) {
+    Mesh(const char *scene_path, bool swap_yz = false, float scale = 1.0f) {
         Assimp::Importer importer;
         unsigned int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_PreTransformVertices;
         const aiScene *scene = importer.ReadFile(scene_path, flags);
@@ -73,22 +73,18 @@ struct Mesh {
 
             // Cache and return ID
             int32_t id = (int32_t)textures.size();
-            cout << "Loaded texture " << id << ": " << texture.width << "x" << texture.height
-                 << " (" << texture.pixels.size() << " bytes)" << endl;
             textures.push_back(std::move(texture));
             textureCache[key] = id;
             return id;
         };
 
         // Load materials
-        cout << "Loading " << scene->mNumMaterials << " materials, "
-             << scene->mNumTextures << " embedded textures" << endl;
         materials.resize(scene->mNumMaterials);
         for (unsigned int mat_i = 0; mat_i < scene->mNumMaterials; mat_i++) {
             aiMaterial* mat = scene->mMaterials[mat_i];
 
             // Get base color
-            aiColor3D base_color(1.0f, 1.0f, 0.3f);
+            aiColor3D base_color(1.0f, 1.0f, 1.0f);
             mat->Get(AI_MATKEY_COLOR_DIFFUSE, base_color);
             if (base_color.IsBlack()) {
                 mat->Get(AI_MATKEY_BASE_COLOR, base_color);
@@ -100,11 +96,7 @@ struct Mesh {
             materials[mat_i].texture_id = -1;
             if (mat->GetTexture(aiTextureType_BASE_COLOR, 0, &texPath) == AI_SUCCESS ||
                 mat->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS) {
-                cout << "Material " << mat_i << " texture path: " << texPath.C_Str() << endl;
                 materials[mat_i].texture_id = loadTexture(texPath, true);  // sRGB
-                cout << "Material " << mat_i << " assigned texture_id=" << materials[mat_i].texture_id << endl;
-            } else {
-                cout << "Material " << mat_i << " has no texture" << endl;
             }
         }
 
@@ -124,11 +116,10 @@ struct Mesh {
 
             for (int vertex_i = 0; vertex_i < ai_mesh->mNumVertices; vertex_i++) {
                 aiVector3D vertex = ai_mesh->mVertices[vertex_i];
-                if (!swap_yz) {
-                    vertices.push_back(glm::vec3(vertex.x, vertex.y, vertex.z));
-                } else {
-                    vertices.push_back(glm::vec3(vertex.x, -vertex.z, vertex.y));
-                }
+                glm::vec3 position = swap_yz
+                    ? glm::vec3(vertex.x, -vertex.z, vertex.y)
+                    : glm::vec3(vertex.x, vertex.y, vertex.z);
+                vertices.push_back(position * scale);
 
                 if (has_uvs) {
                     aiVector3D uv = ai_mesh->mTextureCoords[0][vertex_i];

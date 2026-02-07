@@ -2,6 +2,7 @@
 #include <nanobind/ndarray.h>
 
 #include "cpu_traverse.h"
+#include "material.h"
 
 // #ifdef CUDA_ENABLED
 #include <cuda_runtime.h>
@@ -34,6 +35,12 @@ using d_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cuda,
 using d_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 
 NB_MODULE(mesh_utils_impl, m) {
+    nb::class_<Material>(m, "Material")
+        .def(nb::init<>())
+        .def_rw("base_color", &Material::base_color)
+        .def_rw("texture_id", &Material::texture_id)
+    ;
+
     nb::class_<Mesh>(m, "Mesh")
         .def_static("from_file", [](const char *scene_path, bool swap_yz) {
             return Mesh(scene_path, swap_yz);
@@ -85,6 +92,18 @@ NB_MODULE(mesh_utils_impl, m) {
                 (float *) self.uvs.data(),
                 {self.uvs.size(), 2}
             );
+        })
+        .def("has_textures", [](Mesh& self) {
+            return !self.textures.empty();
+        })
+        .def("get_num_textures", [](Mesh& self) {
+            return self.textures.size();
+        })
+        .def("has_materials", [](Mesh& self) {
+            return !self.materials.empty();
+        })
+        .def("get_num_materials", [](Mesh& self) {
+            return self.materials.size();
         })
         .def("save_preview", [](Mesh& self, const char *filename, int width, int height, h_float3& c_h, float R) {
             glm::vec3 c(c_h.data()[0], c_h.data()[1], c_h.data()[2]);
@@ -149,6 +168,18 @@ NB_MODULE(mesh_utils_impl, m) {
                 {self.uvs.size(), 2}
             );
         })
+        .def("has_materials", [](BVHData& self) {
+            return !self.materials.empty();
+        })
+        .def("get_num_materials", [](BVHData& self) {
+            return self.materials.size();
+        })
+        .def("has_textures", [](BVHData& self) {
+            return !self.textures.empty();
+        })
+        .def("get_num_textures", [](BVHData& self) {
+            return self.textures.size();
+        })
     ;
 
     nb::class_<CPUBuilder>(m, "CPUBuilder")
@@ -167,6 +198,7 @@ NB_MODULE(mesh_utils_impl, m) {
             h_uint_batch& o_prim_idx,
             h_float3_batch& o_normals,
             h_float2_batch& o_uvs,
+            h_float3_batch& o_colors,
             bool allow_negative,
             bool allow_backward,
             bool allow_forward
@@ -181,13 +213,15 @@ NB_MODULE(mesh_utils_impl, m) {
                 o_prim_idx.data(),
                 (glm::vec3 *) o_normals.data(),
                 (glm::vec2 *) o_uvs.data(),
+                (glm::vec3 *) o_colors.data(),
                 n_rays,
                 allow_negative,
                 allow_backward,
                 allow_forward
             );
         }, nb::arg("i_ray_origs"), nb::arg("i_ray_vecs"), nb::arg("o_mask"), nb::arg("o_t"),
-           nb::arg("o_prim_idx"), nb::arg("o_normals"), nb::arg("o_uvs"), nb::arg("allow_negative") = false, nb::arg("allow_backward") = true, nb::arg("allow_forward") = true)
+           nb::arg("o_prim_idx"), nb::arg("o_normals"), nb::arg("o_uvs"), nb::arg("o_colors"),
+           nb::arg("allow_negative") = false, nb::arg("allow_backward") = true, nb::arg("allow_forward") = true)
         .def("point_query", [](
             CPUTraverser& self,
             h_float3_batch& i_points,
@@ -247,6 +281,7 @@ NB_MODULE(mesh_utils_impl, m) {
             d_uint_batch& o_prim_idx,
             d_float3_batch& o_normals,
             d_float2_batch& o_uvs,
+            d_float3_batch& o_colors,
             bool allow_negative,
             bool allow_backward,
             bool allow_forward
@@ -261,13 +296,15 @@ NB_MODULE(mesh_utils_impl, m) {
                 o_prim_idx.data(),
                 (glm::vec3 *) o_normals.data(),
                 (glm::vec2 *) o_uvs.data(),
+                (glm::vec3 *) o_colors.data(),
                 n_rays,
                 allow_negative,
                 allow_backward,
                 allow_forward
             );
         }, nb::arg("i_ray_origs"), nb::arg("i_ray_vecs"), nb::arg("o_mask"), nb::arg("o_t"),
-           nb::arg("o_prim_idx"), nb::arg("o_normals"), nb::arg("o_uvs"), nb::arg("allow_negative") = false, nb::arg("allow_backward") = true, nb::arg("allow_forward") = true)
+           nb::arg("o_prim_idx"), nb::arg("o_normals"), nb::arg("o_uvs"), nb::arg("o_colors"),
+           nb::arg("allow_negative") = false, nb::arg("allow_backward") = true, nb::arg("allow_forward") = true)
         .def("ray_query_all", [](
             GPUTraverser& self,
             d_float3_batch& i_ray_origs,

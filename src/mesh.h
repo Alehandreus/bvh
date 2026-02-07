@@ -12,13 +12,19 @@
 #include "utils.h"
 
 #include "stb_image_write.h"
+#include "material.h"
+#include "texture_loader.h"
+
+#include <unordered_map>
+#include <filesystem>
 
 struct Mesh {
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec2> uvs;
     std::vector<Face> faces;
+    std::vector<Material> materials;
+    std::vector<Texture> textures;
 
-    // https://learnopengl.com/Model-Loading/Model
     Mesh(const char *scene_path, bool swap_yz = false) {
         Assimp::Importer importer;
         unsigned int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_PreTransformVertices;
@@ -31,6 +37,78 @@ struct Mesh {
         vertices.clear();
         faces.clear();
 
+        // Load materials and textures
+        std::unordered_map<std::string, int> textureCache;  // filename -> texture ID
+        std::filesystem::path baseDir = std::filesystem::path(scene_path).parent_path();
+
+        // Helper to load texture
+        auto loadTexture = [&](const aiString& texPath, bool srgb) -> int32_t {
+            std::string key = texPath.C_Str();
+
+            // Check cache first
+            auto it = textureCache.find(key);
+            if (it != textureCache.end()) return it->second;
+
+            // Load new texture
+            Texture texture;
+            std::string error;
+            bool loaded = false;
+
+            if (!key.empty() && key[0] == '*') {
+                // Embedded texture (format: "*0", "*1", etc.)
+                int index = std::atoi(key.c_str() + 1);
+                if (index >= 0 && index < (int)scene->mNumTextures) {
+                    loaded = loadImageFromEmbedded(scene->mTextures[index], &texture, &error);
+                }
+            } else {
+                // File texture (relative to model directory)
+                std::filesystem::path texFile = baseDir / key;
+                loaded = loadImageFromFile(texFile.string(), &texture, &error);
+            }
+
+            if (!loaded) {
+                cout << "Warning: Failed to load texture: " << error << endl;
+                return -1;
+            }
+
+            // Cache and return ID
+            int32_t id = (int32_t)textures.size();
+            cout << "Loaded texture " << id << ": " << texture.width << "x" << texture.height
+                 << " (" << texture.pixels.size() << " bytes)" << endl;
+            textures.push_back(std::move(texture));
+            textureCache[key] = id;
+            return id;
+        };
+
+        // Load materials
+        cout << "Loading " << scene->mNumMaterials << " materials, "
+             << scene->mNumTextures << " embedded textures" << endl;
+        materials.resize(scene->mNumMaterials);
+        for (unsigned int mat_i = 0; mat_i < scene->mNumMaterials; mat_i++) {
+            aiMaterial* mat = scene->mMaterials[mat_i];
+
+            // Get base color
+            aiColor3D base_color(1.0f, 1.0f, 0.3f);
+            mat->Get(AI_MATKEY_COLOR_DIFFUSE, base_color);
+            if (base_color.IsBlack()) {
+                mat->Get(AI_MATKEY_BASE_COLOR, base_color);
+            }
+            materials[mat_i].base_color = glm::vec3(base_color.r, base_color.g, base_color.b);
+
+            // Get texture
+            aiString texPath;
+            materials[mat_i].texture_id = -1;
+            if (mat->GetTexture(aiTextureType_BASE_COLOR, 0, &texPath) == AI_SUCCESS ||
+                mat->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS) {
+                cout << "Material " << mat_i << " texture path: " << texPath.C_Str() << endl;
+                materials[mat_i].texture_id = loadTexture(texPath, true);  // sRGB
+                cout << "Material " << mat_i << " assigned texture_id=" << materials[mat_i].texture_id << endl;
+            } else {
+                cout << "Material " << mat_i << " has no texture" << endl;
+            }
+        }
+
+        // Load meshes
         for (int mesh_i = 0; mesh_i < scene->mNumMeshes; mesh_i++) {
             aiMesh *ai_mesh = scene->mMeshes[mesh_i];
             uint32_t base_index = static_cast<uint32_t>(vertices.size());
@@ -41,6 +119,8 @@ struct Mesh {
             }
 
             bool has_uvs = ai_mesh->mTextureCoords[0] != nullptr;
+            int32_t material_idx = (ai_mesh->mMaterialIndex < materials.size()) ?
+                                   (int32_t)ai_mesh->mMaterialIndex : -1;
 
             for (int vertex_i = 0; vertex_i < ai_mesh->mNumVertices; vertex_i++) {
                 aiVector3D vertex = ai_mesh->mVertices[vertex_i];
@@ -61,15 +141,14 @@ struct Mesh {
                 if (face.mNumIndices < 3) {
                     continue;
                 }
-                faces.push_back({
+                faces.push_back(Face(
                     base_index + face.mIndices[0],
                     base_index + face.mIndices[1],
-                    base_index + face.mIndices[2]
-                });
+                    base_index + face.mIndices[2],
+                    material_idx
+                ));
             }
         }
-
-        // normalize_sphere();
     }
 
     Mesh(const std::vector<glm::vec3> vertices, const std::vector<Face> faces, const std::vector<glm::vec2> uvs = {})
@@ -130,10 +209,10 @@ struct Mesh {
                 glm::vec3 mid2 = (vertices[face[1]] + vertices[face[2]]) / 2.0f;
                 glm::vec3 mid3 = (vertices[face[2]] + vertices[face[0]]) / 2.0f;
 
-                Face new_face1 = {face[0], size(vertices), size(vertices) + 2};
-                Face new_face2 = {size(vertices), face[1], size(vertices) + 1};
-                Face new_face3 = {size(vertices) + 2, size(vertices) + 1, face[2]};
-                Face new_face4 = {size(vertices), size(vertices) + 1, size(vertices) + 2};
+                Face new_face1 = {face[0], size(vertices), size(vertices) + 2, face.material_idx};
+                Face new_face2 = {size(vertices), face[1], size(vertices) + 1, face.material_idx};
+                Face new_face3 = {size(vertices) + 2, size(vertices) + 1, face[2], face.material_idx};
+                Face new_face4 = {size(vertices), size(vertices) + 1, size(vertices) + 2, face.material_idx};
 
                 faces[face_i] = new_face1;
                 faces.push_back(new_face2);

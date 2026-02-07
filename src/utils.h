@@ -75,10 +75,12 @@ struct BBox {
 
 struct Face {
     uint32_t v1, v2, v3;
+    int32_t material_idx;  // Index into materials array, -1 if none
 
-    Face() {}
+    Face() : material_idx(-1) {}
 
-    Face(uint32_t v1, uint32_t v2, uint32_t v3) : v1(v1), v2(v2), v3(v3) {}
+    Face(uint32_t v1, uint32_t v2, uint32_t v3, int32_t mat_idx = -1)
+        : v1(v1), v2(v2), v3(v3), material_idx(mat_idx) {}
 
     glm::vec3 get_centroid(const glm::vec3 *vertices) const {
         return (vertices[v1] + vertices[v2] + vertices[v3]) / 3.0f;
@@ -138,12 +140,13 @@ struct HitResult {
     glm::vec3 normal;
     float bary_u, bary_v;
     glm::vec2 uv;
+    glm::vec3 color;  // Sampled color (linear RGB)
 
-    CUDA_HOST_DEVICE HitResult() : hit(false), t(0), bary_u(0), bary_v(0), uv(0) {}
+    CUDA_HOST_DEVICE HitResult() : hit(false), t(0), bary_u(0), bary_v(0), uv(0), color(1.0f) {}
 
-    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t(t), bary_u(0), bary_v(0), uv(0) {}
+    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t(t), bary_u(0), bary_v(0), uv(0), color(1.0f) {}
 
-    CUDA_HOST_DEVICE HitResult(bool hit, float t, float bary_u, float bary_v) : hit(hit), t(t), bary_u(bary_u), bary_v(bary_v), uv(0) {}
+    CUDA_HOST_DEVICE HitResult(bool hit, float t, float bary_u, float bary_v) : hit(hit), t(t), bary_u(bary_u), bary_v(bary_v), uv(0), color(1.0f) {}
 };
 
 struct HitResults {
@@ -152,6 +155,7 @@ struct HitResults {
     uint32_t *prim_idxs;
     glm::vec3 *normals;
     glm::vec2 *uvs;
+    glm::vec3 *colors;
 
     CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
         if (masks) masks[i] = hit.hit;
@@ -159,6 +163,7 @@ struct HitResults {
         if (prim_idxs) prim_idxs[i] = hit.prim_idx;
         if (normals) normals[i] = hit.normal;
         if (uvs) uvs[i] = hit.uv;
+        if (colors) colors[i] = hit.color;
     }
 };
 

@@ -9,7 +9,7 @@ from mesh_utils import GPURayTracer
 
 # ==== Load and prepare BVH ==== #
 
-mesh = Mesh.from_file("/home/me/Downloads/sphere.obj", False)
+mesh = Mesh.from_file("/home/me/brain/scenes/Chess/ours/meshes/chess_board.glb", True)
 # mesh.split_faces(0.9)
 
 builder = CPUBuilder(mesh)
@@ -59,9 +59,10 @@ d_dirs = torch.from_numpy(dirs).cuda()
 # ==== Run BVH ==== #
 
 ray_tracer = GPURayTracer(bvh_data)
-mask, t1, normals, uvs = ray_tracer.trace(d_cam_poses, d_dirs, allow_backward=False, allow_forward=True)
+mask, t1, normals, uvs, colors = ray_tracer.trace(d_cam_poses, d_dirs, allow_backward=False, allow_forward=True)
 t1[t1 == 1e9] = 0
 
+print(colors[colors.sum(dim=1) != 3])
 
 y = d_cam_poses + d_dirs * t1[:, None]
 
@@ -76,9 +77,9 @@ light_dir = np.array([1, -1, 1])
 light_dir = light_dir / np.linalg.norm(light_dir)
 
 normals[np.isnan(normals)] = 0
-colors = np.dot(normals, light_dir) * 0.5 + 0.5
+colors = colors.cpu().numpy() * np.dot(normals, light_dir)[:, None] * 0.5 + 0.5
 
-img = colors.reshape(img_size, img_size)
+img = colors.reshape(img_size, img_size, 3)
 img[~mask_img] = 0
 
 image = Image.fromarray((img * 255).astype(np.uint8))

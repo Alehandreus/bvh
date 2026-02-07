@@ -1,6 +1,9 @@
 import torch
-from .mesh_utils_impl import Mesh, BVHData, CPUBuilder, CPUTraverser, GPUTraverser
+from collections import namedtuple
+from .mesh_utils_impl import Mesh, BVHData, CPUBuilder, CPUTraverser, GPUTraverser, Material
 from .mesh_utils_impl import GPUMeshSampler, MeshSamplerMode
+
+RayQueryResult = namedtuple('RayQueryResult', ['mask', 'distance', 'normals', 'uv', 'color'])
 
 
 class GPURayTracer:
@@ -15,6 +18,7 @@ class GPURayTracer:
         t         = torch.zeros((n_rays,),    dtype=torch.float32, device="cuda") + 1e9
         normals   = torch.zeros((n_rays, 3),  dtype=torch.float32, device="cuda")
         uvs       = torch.zeros((n_rays, 2),  dtype=torch.float32, device="cuda")
+        colors    = torch.zeros((n_rays, 3),  dtype=torch.float32, device="cuda")
 
         self.bvh_traverser.ray_query(
             cam_poses,
@@ -24,14 +28,13 @@ class GPURayTracer:
             prim_idxs,
             normals,
             uvs,
+            colors,
             allow_negative,
             allow_backward,
             allow_forward,
         )
 
-        # t[t >= 1e9] = 0
-
-        return mask, t, normals, uvs
+        return RayQueryResult(mask=mask, distance=t, normals=normals, uv=uvs, color=colors)
 
 
 class GPURayTracerAll:
@@ -58,7 +61,5 @@ class GPURayTracerAll:
             allow_backward,
             allow_forward,
         )
-
-        # t[t >= 1e9] = 0
 
         return mask, t, prim_idxs.long(), n_hits.long()

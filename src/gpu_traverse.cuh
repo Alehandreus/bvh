@@ -4,6 +4,7 @@
 #include <curand_kernel.h>
 
 #include "cpu_traverse.h"
+#include "texture_sample.h"
 
 #define BLOCK_SIZE 256
 
@@ -12,6 +13,9 @@ CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states);
 CUDA_GLOBAL void ray_query_entry(
     const Rays i_rays,
     const BVHDataPointers i_dp,
+    const TextureDeviceView *texture_views,
+    const MaterialDeviceView *materials,
+    int n_textures,
     HitResults o_hits,
     int n_rays,
     bool allow_negative,
@@ -45,18 +49,71 @@ struct GPUTraverser {
     thrust::device_vector<glm::vec2> uvs;
     thrust::device_vector<Face> faces;
     thrust::device_vector<BVHNode> nodes;
+    thrust::device_vector<MaterialDeviceView> materials;
+    thrust::device_vector<TextureDeviceView> texture_views;
+    std::vector<thrust::device_vector<uint8_t>> texture_pixels;  // Owned pixel data
 
     GPUTraverser(const BVHData &bvh) : bvh(bvh) {
+        printf("GPUTraverser: uploading %zu vertices, %zu faces, %zu nodes\n",
+               bvh.vertices.size(), bvh.faces.size(), bvh.nodes.size());
+        printf("GPUTraverser: %zu UVs, %zu materials, %zu textures\n",
+               bvh.uvs.size(), bvh.materials.size(), bvh.textures.size());
+
         vertices = bvh.vertices;
         faces = bvh.faces;
         nodes = bvh.nodes;
         if (!bvh.uvs.empty()) {
             uvs = bvh.uvs;
         }
+
+        // Upload materials
+        if (!bvh.materials.empty()) {
+            std::vector<MaterialDeviceView> mat_views(bvh.materials.size());
+            for (size_t i = 0; i < bvh.materials.size(); i++) {
+                mat_views[i].base_color = bvh.materials[i].base_color;
+                mat_views[i].texture_id = bvh.materials[i].texture_id;
+                printf("GPUTraverser: Material %zu: texture_id=%d, base_color=(%.2f, %.2f, %.2f)\n",
+                       i, mat_views[i].texture_id,
+                       mat_views[i].base_color.r, mat_views[i].base_color.g, mat_views[i].base_color.b);
+            }
+            materials = mat_views;
+        }
+
+        // Upload textures
+        if (!bvh.textures.empty()) {
+            texture_pixels.resize(bvh.textures.size());
+
+            // First, upload ALL pixel data
+            for (size_t i = 0; i < bvh.textures.size(); i++) {
+                const Texture& tex = bvh.textures[i];
+                printf("GPUTraverser: Uploading texture %zu: %dx%d (%zu bytes)\n",
+                       i, tex.width, tex.height, tex.pixels.size());
+                texture_pixels[i] = tex.pixels;
+            }
+
+            // Then, create views with the stable device pointers
+            std::vector<TextureDeviceView> tex_views(bvh.textures.size());
+            for (size_t i = 0; i < bvh.textures.size(); i++) {
+                const Texture& tex = bvh.textures[i];
+                tex_views[i].pixels = thrust::raw_pointer_cast(texture_pixels[i].data());
+                tex_views[i].width = tex.width;
+                tex_views[i].height = tex.height;
+                tex_views[i].channels = tex.channels;
+            }
+
+            texture_views = tex_views;
+        }
     }
 
     BVHDataPointers get_data_pointers() const {
-        return {vertices.data().get(), faces.data().get(), nodes.data().get(), uvs.empty() ? nullptr : uvs.data().get()};
+        return {
+            vertices.data().get(),
+            faces.data().get(),
+            nodes.data().get(),
+            uvs.empty() ? nullptr : uvs.data().get(),
+            materials.empty() ? nullptr : reinterpret_cast<const Material*>(materials.data().get()),
+            nullptr  // textures pointer will be passed separately via texture_views
+        };
     }
 
     void ray_query(
@@ -67,17 +124,21 @@ struct GPUTraverser {
         uint32_t *o_prim_idxs,
         glm::vec3 *o_normals,
         glm::vec2 *o_uvs,
+        glm::vec3 *o_colors,
         int n_rays,
         bool allow_negative = false,
         bool allow_backward = true,
         bool allow_forward = true
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults hits = {o_masks, o_dists, o_prim_idxs, o_normals, o_uvs};
+        HitResults hits = {o_masks, o_dists, o_prim_idxs, o_normals, o_uvs, o_colors};
 
         ray_query_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             rays,
             get_data_pointers(),
+            texture_views.empty() ? nullptr : texture_views.data().get(),
+            materials.empty() ? nullptr : materials.data().get(),
+            (int)texture_views.size(),
             hits,
             n_rays,
             allow_negative,

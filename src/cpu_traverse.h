@@ -25,6 +25,8 @@ struct BVHDataPointers {
     const Face *faces;
     const BVHNode *nodes;
     const glm::vec2 *uvs;
+    const Material *materials;
+    const Texture *textures;
 };
 
 CUDA_HOST_DEVICE HitResult ray_query(
@@ -46,7 +48,14 @@ struct CPUTraverser {
     CPUTraverser(const BVHData &bvh) : bvh(bvh) {} 
 
     BVHDataPointers get_data_pointers() const {
-        return {bvh.vertices.data(), bvh.faces.data(), bvh.nodes.data(), bvh.uvs.empty() ? nullptr : bvh.uvs.data()};
+        return {
+            bvh.vertices.data(),
+            bvh.faces.data(),
+            bvh.nodes.data(),
+            bvh.uvs.empty() ? nullptr : bvh.uvs.data(),
+            bvh.materials.empty() ? nullptr : bvh.materials.data(),
+            bvh.textures.empty() ? nullptr : bvh.textures.data()
+        };
     }
 
     HitResult closest_primitive_single(const Ray &ray, bool allow_negative = false, bool allow_backward = true, bool allow_forward = true) const {
@@ -61,13 +70,14 @@ struct CPUTraverser {
         uint32_t *o_prim_idx,
         glm::vec3 *o_normals,
         glm::vec2 *o_uvs,
+        glm::vec3 *o_colors,
         int n_rays,
         bool allow_negative = false,
         bool allow_backward = true,
         bool allow_forward = true
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults hits = {o_masks, o_t, o_prim_idx, o_normals, o_uvs};
+        HitResults hits = {o_masks, o_t, o_prim_idx, o_normals, o_uvs, o_colors};
 
         #pragma omp parallel for
         for (int i = 0; i < n_rays; i++) {

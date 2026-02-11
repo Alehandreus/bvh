@@ -6,41 +6,33 @@ from PIL import Image
 from mesh_utils import Mesh, GPURayTracer, generate_camera_rays
 
 
-# ==== Load mesh with BVH ==== #
+# ==== Load mesh and buld BVH ==== #
 
-mesh = Mesh.from_file("/home/me/Downloads/shrek.glb", scale=1, build_bvh=True, max_leaf_size=5)
-
+mesh = Mesh.from_file("/home/me/Downloads/shrek.glb", build_bvh=True)
 print(f"Mesh loaded: {mesh.get_num_vertices()} vertices, {mesh.get_num_faces()} faces")
 
+# quick rasterization to visualize the mesh
 mesh.save_preview("mesh_preview.png")
 
+# ==== Raytrace ==== #
+
 img_size = 800
-
-# ==== Generate rays ==== #
-
-d_cam_poses, d_dirs = generate_camera_rays(mesh, img_size)
-
-
-# ==== Run BVH ==== #
-
+d_cam_poses, d_dirs = generate_camera_rays(mesh, img_size, distance=1.5, device="cuda")
 ray_tracer = GPURayTracer(mesh)
-result = ray_tracer.trace(d_cam_poses, d_dirs, allow_backward=False, allow_forward=True)
+result = ray_tracer.trace(d_cam_poses, d_dirs)
 mask = result.mask
-t1 = result.distance
+distance = result.distance
 normals = result.normals
-uvs = result.uv
 colors = result.color
-t1[t1 == 1e9] = 0
+y = d_cam_poses + d_dirs * distance[:, None]
 
 
-y = d_cam_poses + d_dirs * t1[:, None]
-
-# ==== Visualize ==== #
+# ==== Shade and Save ==== #
 
 mask_img = mask.reshape(img_size, img_size)
 mask_img = mask_img.cpu().numpy()
 normals = normals.cpu().numpy()
-t1 = t1.cpu().numpy()
+distance = distance.cpu().numpy()
 
 light_dir = np.array([1, -1, 1])
 light_dir = light_dir / np.linalg.norm(light_dir)

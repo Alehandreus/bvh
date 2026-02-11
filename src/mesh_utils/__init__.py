@@ -7,7 +7,7 @@ RayQueryResult = namedtuple('RayQueryResult', ['mask', 'distance', 'normals', 'u
 SampleResult = namedtuple('SampleResult', ['points', 'barycentrics', 'face_indices'])
 
 
-def generate_camera_rays(mesh, img_size=512, device=None):
+def generate_camera_rays(mesh, img_size=512, distance=1.0, device=None):
     """Generate camera rays for rendering a mesh.
 
     Automatically positions the camera to view the entire mesh from
@@ -17,6 +17,7 @@ def generate_camera_rays(mesh, img_size=512, device=None):
     Args:
         mesh: Mesh object to generate rays for
         img_size: Image resolution (default 512x512)
+        distance: Distance of the camera from the mesh
         device: Torch device (string or torch.device). Defaults to CUDA if
             available, otherwise CPU.
 
@@ -42,7 +43,7 @@ def generate_camera_rays(mesh, img_size=512, device=None):
         center[1] + max_extent * 0.5,
         center[2] + max_extent * 1.5,
     ])
-    cam_dir = (center - cam_pos) * 0.9
+    cam_dir = (center - cam_pos) / distance
 
     camera_up = torch.tensor([0, 1, 0], dtype=torch.float32, device=device)
     x_dir = torch.linalg.cross(cam_dir, camera_up)
@@ -58,6 +59,8 @@ def generate_camera_rays(mesh, img_size=512, device=None):
 
     cam_poses = cam_pos.unsqueeze(0).repeat(n_pixels, 1)
     dirs = cam_dir.unsqueeze(0) + x_dir.unsqueeze(0) * x_flat.unsqueeze(1) + y_dir.unsqueeze(0) * y_flat.unsqueeze(1)
+
+    dirs = dirs / torch.linalg.norm(dirs, dim=1, keepdim=True)
 
     return cam_poses, dirs
 
@@ -77,9 +80,9 @@ class GPURayTracer:
         Args:
             cam_poses: (n_rays, 3) tensor of ray origins
             dirs: (n_rays, 3) tensor of ray directions
-            allow_negative: Allow negative ray distances
-            allow_backward: Allow hits behind ray origin
-            allow_forward: Allow hits in front of ray origin
+            allow_negative: Allow negative ray distances (behind ray origin)
+            allow_backward: Allow hits facing away from ray direction
+            allow_forward: Allow hits facing towards ray direction
 
         Returns:
             RayQueryResult with:

@@ -1,11 +1,5 @@
-### BVH Tree
-C++ / CUDA implementation of BVH Tree for [mesh-mapping](https://github.com/Alehandreus/neural-intersection) repo.
-
-## Features
-* Large primitive splitting
-* Uniform sampling on mesh surface
-* CUDA traversal
-* NumPy / PyTorch bindings
+### Mesh Utils
+A library for ray tracing meshes on GPU with PyTorch bindings.
 
 ## Requirements
 * **assimp**, **glm**, **openmp**
@@ -16,7 +10,7 @@ C++ / CUDA implementation of BVH Tree for [mesh-mapping](https://github.com/Aleh
 * `pip install -r requirements.txt`
 * [madmann91/bvh](https://github.com/madmann91/bvh/) builder:
     * Added automatically when cloning with `--recurse-submodules`
-    * Can be added to cloned repository with `git submodule init && git submodule update`
+    * Can be added to cloned repository with `git submodule update --init`
 
 ## Installation
 
@@ -25,32 +19,17 @@ Building Python package without GPU support is not implemented. A day may come w
 pip install .
 ```
 
-To build and run CPU-only C++ example, run
-```
-make build_cpu
-make run
-```
-
-To build and run C++ example with GPU support, run
-```
-make build_gpu
-make run
-```
-
 ## Usage
 
-See `examples` folder for both Python and C++ code.
+See `examples` directory, in particular `example_gpu.py`.
 
-You can get `suzanne.fbx` (Blender monkey) from [Google Drive](https://drive.google.com/file/d/1WsVTUILUjK1UWBZuOMLQD-sr-KQHSCRL/view?usp=sharing) 
+Get `suzanne.fbx` (Blender monkey) from [Google Drive](https://drive.google.com/file/d/1WsVTUILUjK1UWBZuOMLQD-sr-KQHSCRL/view?usp=sharing) 
 or with [gdown](https://github.com/wkentaro/gdown) (`pip install gdown`):
 ```
 gdown 1WsVTUILUjK1UWBZuOMLQD-sr-KQHSCRL
 ```
 
-## Images
-
-<img src="https://i.imgur.com/yh6rj9C.png" alt="no image?" style="width: 100%;"/>
-<img src="https://i.imgur.com/sVzMaJX.png" alt="no image?" style="width: 100%;"/>
+Get `shrek.glb` from [Sketchfab](https://sketchfab.com/3d-models/shrek-9aed77fc50814923a734053fbd8d61bf)
 
 ## References
 

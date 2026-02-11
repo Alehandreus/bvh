@@ -7,7 +7,7 @@ from mesh_utils import Mesh, GPURayTracer, generate_camera_rays
 
 # ==== Load mesh with UVs and BVH ==== #
 
-mesh = Mesh.from_file("suzanne.fbx", build_bvh=True, max_leaf_size=25)
+mesh = Mesh.from_file("/home/me/Downloads/shrek.glb", build_bvh=True, max_leaf_size=25)
 print(f"Vertices: {mesh.get_num_vertices()}, Faces: {mesh.get_num_faces()}, Has UVs: {mesh.has_uvs()}")
 
 if not mesh.has_uvs():

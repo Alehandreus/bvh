@@ -11,13 +11,12 @@ from mesh_utils import Mesh, GPURayTracer, generate_camera_rays
 
 Neural Network training example for predicting vertex colors
 by encoding points using learnable vertex embeddings and a small MLP.
-Absolutely useless since we can put colors explicitly as vertex attributes, but serves as a demonstration.
 
 """
 
 
 class Model(nn.Module):
-    def __init__(self, mesh, emb_size=4):
+    def __init__(self, mesh, emb_size=16):
         super().__init__()
         self.emb_size = emb_size
 
@@ -27,11 +26,13 @@ class Model(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(emb_size, 32),
             nn.ReLU(),
+            nn.Linear(32, 32),
+            nn.ReLU(),
             nn.Linear(32, 3),
             nn.Sigmoid(),
         )
 
-    def forward(self, uv, face_idx):
+    def forward(self, barycentrics, face_idx):
         v0_idx = self.faces[face_idx, 0]
         v1_idx = self.faces[face_idx, 1]
         v2_idx = self.faces[face_idx, 2]
@@ -40,9 +41,9 @@ class Model(nn.Module):
         emb_v1 = self.embeddings(v1_idx)
         emb_v2 = self.embeddings(v2_idx)
 
-        w0 = 1 - uv[:, 0] - uv[:, 1]
-        w1 = uv[:, 0]
-        w2 = uv[:, 1]
+        w0 = barycentrics[:, 0]
+        w1 = barycentrics[:, 1]
+        w2 = barycentrics[:, 2]
 
         point_emb = w0[:, None] * emb_v0 + w1[:, None] * emb_v1 + w2[:, None] * emb_v2
 
@@ -65,13 +66,13 @@ def generate_data(mesh, raytracer, n_rays=1000):
     result = raytracer.trace(origins, directions)
     mask = result.mask
 
-    return result.uv[mask], result.face_idx[mask], result.color[mask]
+    return result.barycentrics[mask], result.face_idx[mask], result.color[mask]
 
     
 
 if __name__ == "__main__":
     num_epochs = 100000
-    batch_size = 10000
+    batch_size = 100000
     val_every = 1000
     img_size = 1024
 
@@ -80,12 +81,12 @@ if __name__ == "__main__":
 
     model = Model(mesh).cuda()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
 
     for epoch in (bar := tqdm.tqdm(range(num_epochs))):
         model.train()
-        uv, face_idx, gt_color = generate_data(mesh, ray_tracer, n_rays=10000)
-        pred_color = model(uv, face_idx)
+        barycentrics, face_idx, gt_color = generate_data(mesh, ray_tracer, n_rays=10000)
+        pred_color = model(barycentrics, face_idx)
         loss = F.mse_loss(pred_color, gt_color)
         optimizer.zero_grad()
         loss.backward()
@@ -100,7 +101,7 @@ if __name__ == "__main__":
                 result = ray_tracer.trace(origs, directions)
                 mask = result.mask
                 
-                pred_colors = model(result.uv[mask], result.face_idx[mask])
+                pred_colors = model(result.barycentrics[mask], result.face_idx[mask])
 
                 img = torch.zeros((img_size * img_size, 3), device="cuda")
                 img[mask] = pred_colors

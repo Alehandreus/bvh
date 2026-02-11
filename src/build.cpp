@@ -8,7 +8,7 @@
 
 #include "build.h"
 
-BVHData CPUBuilder::build_bvh(int max_depth) {
+BVHData CPUBuilder::build_bvh(int max_leaf_size) {
     using LibVec3 = bvh::v2::Vec<float, 3>;
     using LibBBox = bvh::v2::BBox<float, 3>;
     using LibTri  = bvh::v2::Tri<float, 3>;
@@ -43,7 +43,7 @@ BVHData CPUBuilder::build_bvh(int max_depth) {
     typename bvh::v2::DefaultBuilder<LibNode>::Config config;
     config.quality       = bvh::v2::DefaultBuilder<LibNode>::Quality::High;
     config.min_leaf_size = 1;
-    config.max_leaf_size = 10;
+    config.max_leaf_size = max_leaf_size;
     LibBVH lib_bvh = bvh::v2::DefaultBuilder<LibNode>::build(thread_pool, bboxes, centers, config);
 
     BVHData bvh_data;

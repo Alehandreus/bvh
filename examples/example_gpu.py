@@ -3,17 +3,18 @@ import matplotlib.pyplot as plt
 import torch
 from PIL import Image
 
-from mesh_utils import Mesh, CPUBuilder, GPUTraverser
+from mesh_utils import Mesh, GPUTraverser
 from mesh_utils import GPURayTracer
 
 
-# ==== Load and prepare BVH ==== #
+# ==== Load mesh with BVH ==== #
 
-mesh = Mesh.from_file("/home/me/brain/scenes/Chess/ours/meshes/full.glb", True, scale=100)
+mesh = Mesh.from_file("/home/me/Downloads/Untitled.glb", scale=1, build_bvh=True, max_leaf_size=5)
 # mesh.split_faces(0.9)
 
-builder = CPUBuilder(mesh)
-bvh_data = builder.build_bvh(5)
+mesh.save_preview("mesh_preview.png", 800, 800)
+
+bvh_data = mesh.get_bvh()
 bvh_data.save_to_obj("bvh.obj", 25)
 bvh = GPUTraverser(bvh_data)
 
@@ -30,13 +31,13 @@ center = (mesh_max + mesh_min) * 0.5
 
 cam_pos = np.array([
     center[0] + max_extent * 1.0,
-    center[1] - max_extent * 1.5,
-    center[2] + max_extent * 0.5,
+    center[1] + max_extent * 0.5,
+    center[2] + max_extent * 1.5,
 ])
 cam_poses = np.tile(cam_pos, (n_pixels, 1))
 cam_dir = (center - cam_pos) * 0.9
 
-x_dir = np.cross(cam_dir, np.array([0, 0, 1]))
+x_dir = np.cross(cam_dir, np.array([0, 1, 0]))
 x_dir = x_dir / np.linalg.norm(x_dir) * (max_extent / 2)
 
 y_dir = -np.cross(x_dir, cam_dir)
@@ -76,7 +77,8 @@ light_dir = np.array([1, -1, 1])
 light_dir = light_dir / np.linalg.norm(light_dir)
 
 normals[np.isnan(normals)] = 0
-colors = colors.cpu().numpy() * np.maximum(np.dot(normals, light_dir)[:, None], 0)
+# colors = colors.cpu().numpy() * np.maximum(np.dot(normals, light_dir)[:, None], 0)
+colors = colors.cpu().numpy() * 0 + np.dot(normals, light_dir)[:, None] * 0.5 + 0.5
 
 img = colors.reshape(img_size, img_size, 3)
 img[~mask_img] = 0

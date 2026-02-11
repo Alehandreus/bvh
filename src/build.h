@@ -100,6 +100,6 @@ struct CPUBuilder {
     CPUBuilder(const Mesh &mesh) : vertices(mesh.vertices), uvs(mesh.uvs), faces(mesh.faces),
                                      materials(mesh.materials), textures(mesh.textures) {}
 
-    BVHData build_bvh(int max_depth);
+    BVHData build_bvh(int max_leaf_size);
     void split_node(BVHData & bvh, uint32_t node, int cur_depth, int max_depth);
 };

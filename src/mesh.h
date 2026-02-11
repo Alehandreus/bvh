@@ -17,6 +17,61 @@
 
 #include <unordered_map>
 #include <filesystem>
+#include <memory>
+
+// Forward declaration to avoid circular dependency
+struct BVHData;
+
+enum class Axis { X, Y, Z, NEG_X, NEG_Y, NEG_Z };
+
+inline Axis parse_axis(const char *axis_str) {
+    const std::string axis_str_s(axis_str);
+    if (axis_str_s == "x") return Axis::X;
+    if (axis_str_s == "y") return Axis::Y;
+    if (axis_str_s == "z") return Axis::Z;
+    if (axis_str_s == "-x") return Axis::NEG_X;
+    if (axis_str_s == "-y") return Axis::NEG_Y;
+    if (axis_str_s == "-z") return Axis::NEG_Z;
+    std::cerr << "Invalid axis: " << axis_str_s << " (valid: x, y, z, -x, -y, -z)" << std::endl;
+    exit(1);
+}
+
+inline glm::vec3 axis_to_vec(Axis axis) {
+    switch (axis) {
+        case Axis::X: return glm::vec3(1, 0, 0);
+        case Axis::Y: return glm::vec3(0, 1, 0);
+        case Axis::Z: return glm::vec3(0, 0, 1);
+        case Axis::NEG_X: return glm::vec3(-1, 0, 0);
+        case Axis::NEG_Y: return glm::vec3(0, -1, 0);
+        case Axis::NEG_Z: return glm::vec3(0, 0, -1);
+    }
+    return glm::vec3(0, 1, 0);
+}
+
+inline glm::mat3 build_transform_matrix(Axis src_up, Axis src_forward) {
+    glm::vec3 src_up_vec = axis_to_vec(src_up);
+    glm::vec3 src_fwd_vec = axis_to_vec(src_forward);
+
+    // Validate perpendicular
+    if (std::abs(glm::dot(src_up_vec, src_fwd_vec)) > 1e-6f) {
+        std::cerr << "Error: up_axis and forward_axis must be perpendicular" << std::endl;
+        exit(1);
+    }
+
+    // Target: Y-up, -Z forward
+    glm::vec3 target_up(0, 1, 0);
+    glm::vec3 target_fwd(0, 0, -1);
+    glm::vec3 target_right = glm::cross(target_fwd, target_up);  // X
+
+    // Source basis (right-handed)
+    glm::vec3 src_right = glm::cross(src_fwd_vec, src_up_vec);
+
+    // Build transformation: maps source basis vectors to target basis
+    glm::mat3 src_basis(src_right, src_up_vec, src_fwd_vec);  // columns
+    glm::mat3 target_basis(target_right, target_up, target_fwd);  // columns
+
+    return glm::inverse(target_basis) * src_basis;
+}
 
 struct Mesh {
     std::vector<glm::vec3> vertices;
@@ -24,8 +79,16 @@ struct Mesh {
     std::vector<Face> faces;
     std::vector<Material> materials;
     std::vector<Texture> textures;
+    std::unique_ptr<BVHData> bvh;
 
-    Mesh(const char *scene_path, bool swap_yz = false, float scale = 1.0f) {
+    Mesh(
+        const char *scene_path,
+        const char *up_axis = "y",
+        const char *forward_axis = "-z",
+        float scale = 1.0f,
+        bool build_bvh = false,
+        int max_leaf_size = 25
+    ) {
         Assimp::Importer importer;
         unsigned int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_PreTransformVertices;
         const aiScene *scene = importer.ReadFile(scene_path, flags);
@@ -100,6 +163,11 @@ struct Mesh {
             }
         }
 
+        // Compute coordinate transformation matrix
+        Axis src_up = parse_axis(up_axis);
+        Axis src_forward = parse_axis(forward_axis);
+        glm::mat3 transform = build_transform_matrix(src_up, src_forward);
+
         // Load meshes
         for (int mesh_i = 0; mesh_i < scene->mNumMeshes; mesh_i++) {
             aiMesh *ai_mesh = scene->mMeshes[mesh_i];
@@ -116,9 +184,8 @@ struct Mesh {
 
             for (int vertex_i = 0; vertex_i < ai_mesh->mNumVertices; vertex_i++) {
                 aiVector3D vertex = ai_mesh->mVertices[vertex_i];
-                glm::vec3 position = swap_yz
-                    ? glm::vec3(vertex.x, -vertex.z, vertex.y)
-                    : glm::vec3(vertex.x, vertex.y, vertex.z);
+                glm::vec3 position(vertex.x, vertex.y, vertex.z);
+                position = transform * position;  // Apply coordinate transformation
                 vertices.push_back(position * scale);
 
                 if (has_uvs) {
@@ -140,11 +207,20 @@ struct Mesh {
                 ));
             }
         }
+
+        // Build BVH if requested (implementation requires build.h include at end of file)
+        if (build_bvh) {
+            build_bvh_internal(max_leaf_size);
+        }
     }
 
     Mesh(const std::vector<glm::vec3> vertices, const std::vector<Face> faces, const std::vector<glm::vec2> uvs = {})
         : vertices(std::move(vertices)), faces(std::move(faces)), uvs(std::move(uvs)) {}
 
+private:
+    void build_bvh_internal(int max_leaf_size);
+
+public:
     void print_stats() {
         cout << vertices.size() << " vertices; " << faces.size() << " faces" << endl; // why are vertices duplicated ????
     }
@@ -249,10 +325,8 @@ struct Mesh {
         }
 
         for (const glm::vec3 &vertex : vertices) {
-            // outFile << "v " << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
-
-            // swap y and z for blender
-            outFile << "v " << vertex.x << " " << vertex.z << " " << -vertex.y << "\n";
+            // Internal is Y-up, -Z forward (OpenGL/Blender convention)
+            outFile << "v " << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
         }
 
         for (const Face &face : faces) {
@@ -266,10 +340,6 @@ struct Mesh {
         glm::vec3 c(0.0f);
         for (auto& v : vertices) c += v;
         c /= float(vertices.size());
-
-        // c = {c.x, c.z, -c.y}; // swap y and z for blender
-        c = {c.x, c.y, c.z};
-
         return c;
     }
 
@@ -277,18 +347,18 @@ struct Mesh {
         glm::vec3 c = get_c();
 
         float R = 0.0f;
-        // for (auto& v : vertices) R = std::max(R, glm::length(v - glm::vec3(c.x, -c.z, c.y)));
-        for (auto& v : vertices) R = std::max(R, glm::length(v - glm::vec3(c.x, c.y, c.z)));
+        for (auto& v : vertices) R = std::max(R, glm::length(v - c));
         if (R <= 0.0f) R = 1.0f;
 
         return R;
     }
 
-    bool save_preview(const char *filename, int width, int height, glm::vec3 c, float R) const {
+    bool save_preview(const char *filename, int width = 512, int height = 512) const {
         if (vertices.empty() || faces.empty() || width <= 0 || height <= 0) return false;
 
-        // Center & scale heuristics
-        // glm::vec3 c(0.0f);
+        // Compute center and radius
+        glm::vec3 c = get_c();
+        float R = get_R();
         // for (auto& v : vertices) c += v;
         // c /= float(vertices.size());
         // float R = 0.0f;
@@ -328,10 +398,6 @@ struct Mesh {
             glm::vec3 v0 = vertices[f.v1];
             glm::vec3 v1 = vertices[f.v2];
             glm::vec3 v2 = vertices[f.v3];
-            
-            // v0 = {v0.x, v0.z, -v0.y}; // swap y and z for blender
-            // v1 = {v1.x, v1.z, -v1.y};
-            // v2 = {v2.x, v2.z, -v2.y};
 
             // Face normal/shading in world space (flat shading)
             glm::vec3 n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
@@ -384,5 +450,5 @@ struct Mesh {
         stbi_write_png(filename, width, height, 3, rgb.data(), width * 3);
 
         return true;
-    }    
+    }
 };

@@ -2,20 +2,19 @@ import numpy as np
 import torch
 from PIL import Image
 
-from mesh_utils import Mesh, CPUBuilder, GPUTraverser
+from mesh_utils import Mesh, GPUTraverser
 from mesh_utils import GPURayTracer
 
 
-# ==== Load mesh with UVs ==== #
+# ==== Load mesh with UVs and BVH ==== #
 
-mesh = Mesh.from_file("suzanne.fbx", True)
-print(f"Vertices: {mesh.get_num_vertices()}, Faces: {mesh.get_num_faces()}, Has UVs: {mesh.has_uvs()}")
+mesh = Mesh.from_file("suzanne.fbx", build_bvh=True, max_leaf_size=25)
+print(f"Vertices: {mesh.get_num_vertices()}, Faces: {mesh.get_num_faces()}, Has UVs: {mesh.has_uvs()}, Has BVH: {mesh.has_bvh()}")
 
 if not mesh.has_uvs():
     print("Warning: mesh has no UV coordinates. The output will be black.")
 
-builder = CPUBuilder(mesh)
-bvh_data = builder.build_bvh(25)
+bvh_data = mesh.get_bvh()
 bvh = GPUTraverser(bvh_data)
 
 img_size = 800
@@ -30,13 +29,13 @@ center = (mesh_max + mesh_min) * 0.5
 
 cam_pos = np.array([
     center[0] + max_extent * 1.0,
-    center[1] - max_extent * 1.5,
+    center[1] + max_extent * 1.5,
     center[2] + max_extent * 0.5,
 ])
 cam_poses = np.tile(cam_pos, (n_pixels, 1)).astype(np.float32)
 cam_dir = (center - cam_pos) * 0.9
 
-x_dir = np.cross(cam_dir, np.array([0, 0, 1]))
+x_dir = np.cross(cam_dir, np.array([0, 1, 0]))
 x_dir = x_dir / np.linalg.norm(x_dir) * (max_extent / 2)
 
 y_dir = -np.cross(x_dir, cam_dir)

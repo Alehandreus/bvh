@@ -19,6 +19,7 @@ include_directories(bvh/src)
 
 # this code requires c++20
 set(CPU_SOURCES
+    src/mesh.cpp
     src/build.cpp
     src/texture_loader.cpp
     src/texture_sample.cpp

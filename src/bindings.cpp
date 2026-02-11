@@ -42,30 +42,20 @@ NB_MODULE(mesh_utils_impl, m) {
     ;
 
     nb::class_<Mesh>(m, "Mesh")
-        .def_static("from_file", [](const char *scene_path, bool swap_yz, float scale) {
-            return Mesh(scene_path, swap_yz, scale);
-        }, nb::arg("scene_path"), nb::arg("swap_yz") = false, nb::arg("scale") = 1.0f)
-        .def_static("from_data", [](const h_float3_batch &vertices, const h_uint3_batch &faces) {
-            std::vector<glm::vec3> verts_vec(vertices.shape(0));
-            std::memcpy(verts_vec.data(), vertices.data(), sizeof(glm::vec3) * vertices.shape(0));
-
-            std::vector<Face> faces_vec(faces.shape(0));
-            std::memcpy(faces_vec.data(), faces.data(), sizeof(Face) * faces.shape(0));
-
-            return Mesh(std::move(verts_vec), std::move(faces_vec));
-        })
-        .def_static("from_data_with_uvs", [](const h_float3_batch &vertices, const h_uint3_batch &faces, const h_float2_batch &uvs) {
-            std::vector<glm::vec3> verts_vec(vertices.shape(0));
-            std::memcpy(verts_vec.data(), vertices.data(), sizeof(glm::vec3) * vertices.shape(0));
-
-            std::vector<Face> faces_vec(faces.shape(0));
-            std::memcpy(faces_vec.data(), faces.data(), sizeof(Face) * faces.shape(0));
-
-            std::vector<glm::vec2> uvs_vec(uvs.shape(0));
-            std::memcpy(uvs_vec.data(), uvs.data(), sizeof(glm::vec2) * uvs.shape(0));
-
-            return Mesh(std::move(verts_vec), std::move(faces_vec), std::move(uvs_vec));
-        })
+        .def_static("from_file", [](const char *scene_path,
+                                    const char *up_axis,
+                                    const char *forward_axis,
+                                    float scale,
+                                    bool build_bvh,
+                                    int max_leaf_size) {
+            return Mesh(scene_path, up_axis, forward_axis, scale, build_bvh, max_leaf_size);
+        }, nb::arg("scene_path"),
+           nb::kw_only(),
+           nb::arg("up_axis") = "y",
+           nb::arg("forward_axis") = "-z",
+           nb::arg("scale") = 1.0f,
+           nb::arg("build_bvh") = false,
+           nb::arg("max_leaf_size") = 25)
         .def("get_num_vertices", [](Mesh& self) {
             return self.vertices.size();
         })
@@ -93,29 +83,21 @@ NB_MODULE(mesh_utils_impl, m) {
                 {self.uvs.size(), 2}
             );
         })
-        .def("has_textures", [](Mesh& self) {
-            return !self.textures.empty();
-        })
-        .def("get_num_textures", [](Mesh& self) {
-            return self.textures.size();
-        })
-        .def("has_materials", [](Mesh& self) {
-            return !self.materials.empty();
-        })
-        .def("get_num_materials", [](Mesh& self) {
-            return self.materials.size();
-        })
-        .def("save_preview", [](Mesh& self, const char *filename, int width, int height, h_float3& c_h, float R) {
-            glm::vec3 c(c_h.data()[0], c_h.data()[1], c_h.data()[2]);
-            return self.save_preview(filename, width, height, c, R);
-        })
-        .def("get_c", [](Mesh& self) {
-            glm::vec3 c = self.get_c();
-            return h_float3(&c).cast();
-        })
-        .def("get_R", &Mesh::get_R)
+        .def("save_preview", &Mesh::save_preview,
+             nb::arg("filename"),
+             nb::arg("width") = 512,
+             nb::arg("height") = 512)
         .def("save_to_obj", &Mesh::save_to_obj)
         .def("split_faces", &Mesh::split_faces)
+        .def("has_bvh", [](Mesh& self) {
+            return self.bvh != nullptr;
+        })
+        .def("get_bvh", [](Mesh& self) -> BVHData& {
+            if (!self.bvh) {
+                throw std::runtime_error("Mesh does not have a BVH. Build with build_bvh=True.");
+            }
+            return *self.bvh;
+        }, nb::rv_policy::reference_internal)
         .def("get_bounds", [](Mesh& self) {
             auto [min, max] = self.bounds();
             return nb::make_tuple(

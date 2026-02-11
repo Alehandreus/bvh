@@ -2,11 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
-from mesh_utils import Mesh, CPUBuilder, GPURayTracer
+from mesh_utils import Mesh, GPURayTracer
 
-mesh = Mesh.from_file("/home/me/brain/mesh-mapping/models/dragon_outer_2000.fbx", False)
-builder = CPUBuilder(mesh)
-bvh_data = builder.build_bvh(5)
+mesh = Mesh.from_file("/home/me/brain/mesh-mapping/models/dragon_outer_2000.fbx", up_axis="z", forward_axis="y", build_bvh=True, max_leaf_size=5)
+bvh_data = mesh.get_bvh()
 tracer = GPURayTracer(bvh_data)
 
 img_size = 800
@@ -18,13 +17,13 @@ center = (mesh_max + mesh_min) * 0.5
 
 cam_pos = np.array([
     center[0] + max_extent * 1.0,
-    center[1] - max_extent * 1.5,
+    center[1] + max_extent * 1.5,
     center[2] + max_extent * 0.5,
 ])
 cam_poses = np.tile(cam_pos, (n_pixels, 1))
 cam_dir = (center - cam_pos) * 0.9
 
-x_dir = np.cross(cam_dir, np.array([0, 0, 1]))
+x_dir = np.cross(cam_dir, np.array([0, 1, 0]))
 x_dir = x_dir / np.linalg.norm(x_dir) * (max_extent / 2)
 
 y_dir = -np.cross(x_dir, cam_dir)

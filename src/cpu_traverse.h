@@ -122,13 +122,13 @@ struct CPUTraverser {
         auto [min, max] = bvh.nodes[0].bbox;
         glm::vec3 center = (max + min) * 0.5f;
         float max_extent = std::fmax(max.x - min.x, std::fmax(max.y - min.y, max.z - min.z));
-        glm::vec3 cam_pos = { 
+        glm::vec3 cam_pos = {
             center.x + max_extent * 1.0,
-            center.y - max_extent * 1.5,
+            center.y + max_extent * 1.5,
             center.z + max_extent * 0.5
         };
         glm::vec3 cam_dir = (center - cam_pos) * 0.9f;
-        glm::vec3 x_dir = glm::normalize(glm::cross(cam_dir, glm::vec3(0, 0, 1))) * (max_extent / 2);
+        glm::vec3 x_dir = glm::normalize(glm::cross(cam_dir, glm::vec3(0, 1, 0))) * (max_extent / 2);
         glm::vec3 y_dir = -glm::normalize(glm::cross(x_dir, cam_dir)) * (max_extent / 2);
 
 

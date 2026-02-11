@@ -2,42 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
-from mesh_utils import Mesh, GPURayTracer
+from mesh_utils import Mesh, GPURayTracer, generate_camera_rays
 
 mesh = Mesh.from_file("/home/me/brain/mesh-mapping/models/dragon_outer_2000.fbx", up_axis="z", forward_axis="y", build_bvh=True, max_leaf_size=5)
-bvh_data = mesh.get_bvh()
-tracer = GPURayTracer(bvh_data)
+tracer = GPURayTracer(mesh)
 
 img_size = 800
-n_pixels = img_size * img_size
 
-mesh_min, mesh_max = mesh.get_bounds()
-max_extent = max(mesh_max - mesh_min)
-center = (mesh_max + mesh_min) * 0.5
-
-cam_pos = np.array([
-    center[0] + max_extent * 1.0,
-    center[1] + max_extent * 1.5,
-    center[2] + max_extent * 0.5,
-])
-cam_poses = np.tile(cam_pos, (n_pixels, 1))
-cam_dir = (center - cam_pos) * 0.9
-
-x_dir = np.cross(cam_dir, np.array([0, 1, 0]))
-x_dir = x_dir / np.linalg.norm(x_dir) * (max_extent / 2)
-
-y_dir = -np.cross(x_dir, cam_dir)
-y_dir = y_dir / np.linalg.norm(y_dir) * (max_extent / 2)
-
-x_coords, y_coords = np.meshgrid(
-    np.linspace(-1, 1, img_size),
-    np.linspace(-1, 1, img_size),
-)
-
-x_coords = x_coords.flatten()
-y_coords = y_coords.flatten()
-
-dirs = cam_dir[None, :] + x_dir[None, :] * x_coords[:, None] + y_dir[None, :] * y_coords[:, None]
+cam_poses, dirs = generate_camera_rays(mesh, img_size)
 dirs_normalized = dirs / np.linalg.norm(dirs, axis=1, keepdims=True)
 
 d_cam_poses = torch.from_numpy(cam_poses).float().cuda()

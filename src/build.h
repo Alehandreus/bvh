@@ -49,12 +49,8 @@ struct BVHNode {
 };
 
 struct BVHData {
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec2> uvs;
-    std::vector<Face> faces;
+    std::vector<Face> faces;  // Reordered faces for BVH traversal
     std::vector<BVHNode> nodes;
-    std::vector<Material> materials;
-    std::vector<Texture> textures;
 
     int depth;
     int n_nodes;

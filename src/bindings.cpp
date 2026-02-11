@@ -35,12 +35,6 @@ using d_uintN_batch = nb::ndarray<uint32_t, nb::shape<-1, -1>, nb::device::cuda,
 using d_int_batch = nb::ndarray<int, nb::shape<-1>, nb::device::cuda, nb::c_contig>;
 
 NB_MODULE(mesh_utils_impl, m) {
-    nb::class_<Material>(m, "Material")
-        .def(nb::init<>())
-        .def_rw("base_color", &Material::base_color)
-        .def_rw("texture_id", &Material::texture_id)
-    ;
-
     nb::class_<Mesh>(m, "Mesh")
         .def_static("from_file", [](const char *scene_path,
                                     const char *up_axis,
@@ -88,16 +82,6 @@ NB_MODULE(mesh_utils_impl, m) {
              nb::arg("width") = 512,
              nb::arg("height") = 512)
         .def("save_to_obj", &Mesh::save_to_obj)
-        .def("split_faces", &Mesh::split_faces)
-        .def("has_bvh", [](Mesh& self) {
-            return self.bvh != nullptr;
-        })
-        .def("get_bvh", [](Mesh& self) -> BVHData& {
-            if (!self.bvh) {
-                throw std::runtime_error("Mesh does not have a BVH. Build with build_bvh=True.");
-            }
-            return *self.bvh;
-        }, nb::rv_policy::reference_internal)
         .def("get_bounds", [](Mesh& self) {
             auto [min, max] = self.bounds();
             return nb::make_tuple(
@@ -107,70 +91,8 @@ NB_MODULE(mesh_utils_impl, m) {
         })
     ;
 
-    nb::class_<BVHData>(m, "BVHData")
-        .def_ro("depth", &BVHData::depth)
-        .def_ro("n_nodes", &BVHData::n_nodes)
-        .def_ro("n_leaves", &BVHData::n_leaves)
-        .def("save_to_obj", [](BVHData& self, const char *filename, int max_depth) {
-            self.save_to_obj(filename, max_depth);
-        })
-        .def("nodes_memory_bytes", &BVHData::nodes_memory_bytes)
-        .def("nodes_data", [](BVHData& self) {
-            glm::vec3 *min = new glm::vec3[self.nodes.size()];
-            glm::vec3 *max = new glm::vec3[self.nodes.size()];
-
-            for (int i = 0; i < self.nodes.size(); i++) {
-                min[i] = self.nodes[i].bbox.min;
-                max[i] = self.nodes[i].bbox.max;
-            }
-
-            auto min_arr = nb::ndarray<float, nb::numpy>(min, {self.nodes.size(), 3});
-            auto max_arr = nb::ndarray<float, nb::numpy>(max, {self.nodes.size(), 3});
-
-            return nb::make_tuple(min_arr, max_arr);
-        })
-        .def("get_faces", [](BVHData& self) {
-            return nb::ndarray<uint32_t, nb::numpy>(
-                (uint32_t *) self.faces.data(),
-                {self.faces.size(), 3}
-            );
-        })
-        .def("get_vertices", [](BVHData& self) {
-            return nb::ndarray<float, nb::numpy>(
-                (float *) self.vertices.data(),
-                {self.vertices.size(), 3}
-            );
-        })
-        .def("has_uvs", [](BVHData& self) {
-            return !self.uvs.empty();
-        })
-        .def("get_uvs", [](BVHData& self) {
-            return nb::ndarray<float, nb::numpy>(
-                (float *) self.uvs.data(),
-                {self.uvs.size(), 2}
-            );
-        })
-        .def("has_materials", [](BVHData& self) {
-            return !self.materials.empty();
-        })
-        .def("get_num_materials", [](BVHData& self) {
-            return self.materials.size();
-        })
-        .def("has_textures", [](BVHData& self) {
-            return !self.textures.empty();
-        })
-        .def("get_num_textures", [](BVHData& self) {
-            return self.textures.size();
-        })
-    ;
-
-    nb::class_<CPUBuilder>(m, "CPUBuilder")
-        .def(nb::init<const Mesh&>())
-        .def("build_bvh", &CPUBuilder::build_bvh, "Use mesh provided in constructor to build BVH with given depth. Returns BVHData.")
-    ;
-
     nb::class_<CPUTraverser>(m, "CPUTraverser")
-        .def(nb::init<const BVHData&>())
+        .def(nb::init<const Mesh&>())
         .def("ray_query", [](
             CPUTraverser& self,
             h_float3_batch& i_ray_origs,
@@ -253,7 +175,7 @@ NB_MODULE(mesh_utils_impl, m) {
     ;
 
     nb::class_<GPUTraverser>(m, "GPUTraverser")
-        .def(nb::init<const BVHData&>())
+        .def(nb::init<const Mesh&>())
         .def("ray_query", [](
             GPUTraverser& self,
             d_float3_batch& i_ray_origs,

@@ -66,10 +66,6 @@ BVHData CPUBuilder::build_bvh(int max_leaf_size) {
         new_faces[i] = faces[j];
     }
     bvh_data.faces = new_faces;
-    bvh_data.vertices = vertices;
-    bvh_data.uvs = uvs;
-    bvh_data.materials = materials;
-    bvh_data.textures = textures;
     bvh_data.n_nodes = lib_bvh.nodes.size();
     bvh_data.n_leaves = bvh_data.get_n_leaves();
     bvh_data.depth = bvh_data.get_depth();

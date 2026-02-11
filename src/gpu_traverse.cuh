@@ -43,7 +43,7 @@ CUDA_GLOBAL void ray_query_all_entry(
 );
 
 struct GPUTraverser {
-    const BVHData &bvh;
+    const Mesh &mesh;
 
     thrust::device_vector<glm::vec3> vertices;
     thrust::device_vector<glm::vec2> uvs;
@@ -53,38 +53,43 @@ struct GPUTraverser {
     thrust::device_vector<TextureDeviceView> texture_views;
     std::vector<thrust::device_vector<uint8_t>> texture_pixels;  // Owned pixel data
 
-    GPUTraverser(const BVHData &bvh) : bvh(bvh) {
-        vertices = bvh.vertices;
-        faces = bvh.faces;
-        nodes = bvh.nodes;
-        if (!bvh.uvs.empty()) {
-            uvs = bvh.uvs;
+    GPUTraverser(const Mesh &mesh) : mesh(mesh) {
+        if (!mesh.bvh) {
+            std::cerr << "Error: Mesh does not have BVH built. Use build_bvh=True when loading." << std::endl;
+            exit(1);
+        }
+
+        vertices = mesh.vertices;
+        faces = mesh.bvh->faces;
+        nodes = mesh.bvh->nodes;
+        if (!mesh.uvs.empty()) {
+            uvs = mesh.uvs;
         }
 
         // Upload materials
-        if (!bvh.materials.empty()) {
-            std::vector<MaterialDeviceView> mat_views(bvh.materials.size());
-            for (size_t i = 0; i < bvh.materials.size(); i++) {
-                mat_views[i].base_color = bvh.materials[i].base_color;
-                mat_views[i].texture_id = bvh.materials[i].texture_id;
+        if (!mesh.materials.empty()) {
+            std::vector<MaterialDeviceView> mat_views(mesh.materials.size());
+            for (size_t i = 0; i < mesh.materials.size(); i++) {
+                mat_views[i].base_color = mesh.materials[i].base_color;
+                mat_views[i].texture_id = mesh.materials[i].texture_id;
             }
             materials = mat_views;
         }
 
         // Upload textures
-        if (!bvh.textures.empty()) {
-            texture_pixels.resize(bvh.textures.size());
+        if (!mesh.textures.empty()) {
+            texture_pixels.resize(mesh.textures.size());
 
             // First, upload ALL pixel data
-            for (size_t i = 0; i < bvh.textures.size(); i++) {
-                const Texture& tex = bvh.textures[i];
+            for (size_t i = 0; i < mesh.textures.size(); i++) {
+                const Texture& tex = mesh.textures[i];
                 texture_pixels[i] = tex.pixels;
             }
 
             // Then, create views with the stable device pointers
-            std::vector<TextureDeviceView> tex_views(bvh.textures.size());
-            for (size_t i = 0; i < bvh.textures.size(); i++) {
-                const Texture& tex = bvh.textures[i];
+            std::vector<TextureDeviceView> tex_views(mesh.textures.size());
+            for (size_t i = 0; i < mesh.textures.size(); i++) {
+                const Texture& tex = mesh.textures[i];
                 tex_views[i].pixels = thrust::raw_pointer_cast(texture_pixels[i].data());
                 tex_views[i].width = tex.width;
                 tex_views[i].height = tex.height;

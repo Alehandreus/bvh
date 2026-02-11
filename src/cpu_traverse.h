@@ -43,18 +43,23 @@ CUDA_HOST_DEVICE SDFHitResult point_query(
 );
 
 struct CPUTraverser {
-    const BVHData &bvh; 
+    const Mesh &mesh;
 
-    CPUTraverser(const BVHData &bvh) : bvh(bvh) {} 
+    CPUTraverser(const Mesh &mesh) : mesh(mesh) {
+        if (!mesh.bvh) {
+            std::cerr << "Error: Mesh does not have BVH built. Use build_bvh=True when loading." << std::endl;
+            exit(1);
+        }
+    }
 
     BVHDataPointers get_data_pointers() const {
         return {
-            bvh.vertices.data(),
-            bvh.faces.data(),
-            bvh.nodes.data(),
-            bvh.uvs.empty() ? nullptr : bvh.uvs.data(),
-            bvh.materials.empty() ? nullptr : bvh.materials.data(),
-            bvh.textures.empty() ? nullptr : bvh.textures.data()
+            mesh.vertices.data(),
+            mesh.bvh->faces.data(),
+            mesh.bvh->nodes.data(),
+            mesh.uvs.empty() ? nullptr : mesh.uvs.data(),
+            mesh.materials.empty() ? nullptr : mesh.materials.data(),
+            mesh.textures.empty() ? nullptr : mesh.textures.data()
         };
     }
 
@@ -119,7 +124,7 @@ struct CPUTraverser {
     ) {
         // ==== Set up default Camera ==== //
 
-        auto [min, max] = bvh.nodes[0].bbox;
+        auto [min, max] = mesh.bvh->nodes[0].bbox;
         glm::vec3 center = (max + min) * 0.5f;
         float max_extent = std::fmax(max.x - min.x, std::fmax(max.y - min.y, max.z - min.z));
         glm::vec3 cam_pos = {

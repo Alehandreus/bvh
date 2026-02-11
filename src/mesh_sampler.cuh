@@ -27,10 +27,6 @@ CUDA_GLOBAL void mesh_sample_surface_uniform_entry(
     int n_points
 );
 
-enum class MeshSamplerMode {
-    SURFACE_UNIFORM
-};
-
 struct GPUMeshSampler {
     thrust::device_vector<glm::vec3> vertices_;
     thrust::device_vector<Face> faces_;
@@ -39,20 +35,15 @@ struct GPUMeshSampler {
     int max_points_;
     thrust::device_vector<curandState> rand_states_;
 
-    MeshSamplerMode mode_;
-
-    GPUMeshSampler(const Mesh &mesh, MeshSamplerMode mode, int max_points) {
+    GPUMeshSampler(const Mesh &mesh, int max_points) {
         vertices_ = mesh.vertices;
         faces_ = mesh.faces;
-        mode_ = mode;
-        
+
         max_points_ = max_points;
         rand_states_.resize(max_points_);
         init_rand_state_entry<<<(max_points + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(rand_states_.data().get(), max_points);
 
-        if (mode == MeshSamplerMode::SURFACE_UNIFORM) {
-            fill_face_weights_cpu(mesh);
-        }
+        fill_face_weights_cpu(mesh);
     }
 
     void fill_face_weights_cpu(const Mesh &mesh) {
@@ -92,22 +83,17 @@ struct GPUMeshSampler {
             exit(1);
         }
 
-        if (mode_ == MeshSamplerMode::SURFACE_UNIFORM) {
-            mesh_sample_surface_uniform_entry<<<(n_points + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
-                vertices_.data().get(),
-                faces_.data().get(),
-                face_weights_prefix_sum_.data().get(),
-                faces_.size(),
-                rand_states_.data().get(),
-                out_points,
-                out_barycentrics,
-                out_face_idxs,
-                n_points
-            );
-            CUDA_CHECK_ERRORS();
-        } else {
-            std::cerr << "Error: Unsupported MeshSamplerMode" << std::endl;
-            exit(1);
-        }
+        mesh_sample_surface_uniform_entry<<<(n_points + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
+            vertices_.data().get(),
+            faces_.data().get(),
+            face_weights_prefix_sum_.data().get(),
+            faces_.size(),
+            rand_states_.data().get(),
+            out_points,
+            out_barycentrics,
+            out_face_idxs,
+            n_points
+        );
+        CUDA_CHECK_ERRORS();
     }
 };

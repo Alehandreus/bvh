@@ -8,7 +8,7 @@ from mesh_utils import Mesh, GPURayTracer, generate_camera_rays
 
 # ==== Load mesh with BVH ==== #
 
-mesh = Mesh.from_file("/home/me/Downloads/Untitled.glb", scale=1, build_bvh=True, max_leaf_size=5)
+mesh = Mesh.from_file("/home/me/Downloads/shrek.glb", scale=1, build_bvh=True, max_leaf_size=5)
 
 print(f"Mesh loaded: {mesh.get_num_vertices()} vertices, {mesh.get_num_faces()} faces")
 
@@ -18,16 +18,18 @@ img_size = 800
 
 # ==== Generate rays ==== #
 
-cam_poses, dirs = generate_camera_rays(mesh, img_size)
-
-d_cam_poses = torch.from_numpy(cam_poses).cuda()
-d_dirs = torch.from_numpy(dirs).cuda()
+d_cam_poses, d_dirs = generate_camera_rays(mesh, img_size)
 
 
 # ==== Run BVH ==== #
 
 ray_tracer = GPURayTracer(mesh)
-mask, t1, normals, uvs, colors = ray_tracer.trace(d_cam_poses, d_dirs, allow_backward=False, allow_forward=True)
+result = ray_tracer.trace(d_cam_poses, d_dirs, allow_backward=False, allow_forward=True)
+mask = result.mask
+t1 = result.distance
+normals = result.normals
+uvs = result.uv
+colors = result.color
 t1[t1 == 1e9] = 0
 
 
@@ -44,8 +46,7 @@ light_dir = np.array([1, -1, 1])
 light_dir = light_dir / np.linalg.norm(light_dir)
 
 normals[np.isnan(normals)] = 0
-# colors = colors.cpu().numpy() * np.maximum(np.dot(normals, light_dir)[:, None], 0)
-colors = colors.cpu().numpy() * 0 + np.dot(normals, light_dir)[:, None] * 0.5 + 0.5
+colors = colors.cpu().numpy() * (np.dot(normals, light_dir)[:, None] * 0.5 + 0.5)
 
 img = colors.reshape(img_size, img_size, 3)
 img[~mask_img] = 0

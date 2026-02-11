@@ -10,21 +10,27 @@ tracer = GPURayTracer(mesh)
 img_size = 800
 
 cam_poses, dirs = generate_camera_rays(mesh, img_size)
-dirs_normalized = dirs / np.linalg.norm(dirs, axis=1, keepdims=True)
+dirs_normalized = dirs / torch.linalg.norm(dirs, dim=1, keepdim=True)
 
-d_cam_poses = torch.from_numpy(cam_poses).float().cuda()
-d_dirs = torch.from_numpy(dirs).float().cuda()
-d_dirs_normalized = torch.from_numpy(dirs_normalized).float().cuda()
+d_cam_poses = cam_poses
+d_dirs = dirs
+d_dirs_normalized = dirs_normalized
 
 # First intersection
-mask_1, t_1, normals_1, uvs_1 = tracer.trace(d_cam_poses, d_dirs, allow_negative=False)
+result_1 = tracer.trace(d_cam_poses, d_dirs, allow_negative=False)
+mask_1 = result_1.mask
+t_1 = result_1.distance
+normals_1 = result_1.normals
 
 # Second intersection - move epsilon past first hit and trace again
 epsilon = 1e-3
 first_hit_points = d_cam_poses + d_dirs * t_1[:, None]
 new_ray_origins = first_hit_points + d_dirs * epsilon
 
-mask_2, t_2, normals_2, uvs_2 = tracer.trace(new_ray_origins, d_dirs, allow_negative=False)
+result_2 = tracer.trace(new_ray_origins, d_dirs, allow_negative=False)
+mask_2 = result_2.mask
+t_2 = result_2.distance
+normals_2 = result_2.normals
 
 # Visualize
 mask_1_img = mask_1.reshape(img_size, img_size).cpu().numpy()

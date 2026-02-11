@@ -144,13 +144,8 @@ NB_MODULE(mesh_utils_impl, m) {
     ;
 
     // #ifdef CUDA_ENABLED
-    nb::enum_<MeshSamplerMode>(m, "MeshSamplerMode")
-        .value("SURFACE_UNIFORM", MeshSamplerMode::SURFACE_UNIFORM)
-        .export_values()
-    ;
-
     nb::class_<GPUMeshSampler>(m, "GPUMeshSampler")
-        .def(nb::init<const Mesh&, MeshSamplerMode, int>(), nb::arg("mesh"), nb::arg("mode"), nb::arg("max_points"))
+        .def(nb::init<const Mesh&, int>(), nb::arg("mesh"), nb::arg("max_points"))
         .def("sample", [](
             GPUMeshSampler& self,
             d_float3_batch& o_points,

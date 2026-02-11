@@ -16,14 +16,12 @@ result = sampler.sample(n_points)
 
 print(f"Sampled {n_points} points")
 print(f"Points shape: {result.points.shape}")
-print(f"First few points:\n{result.points[:5]}")
 
 # create .obj file to visualize the sampled points
 with open("sampled_points.obj", "w") as f:
     for p in result.points.cpu().numpy():
         f.write(f"v {p[0]} {p[2]} {-p[1]}\n")
 
-print(mesh.get_bounds())
 mesh.save_to_obj("original_mesh.obj")
 mesh.save_preview("original_mesh.png")
 

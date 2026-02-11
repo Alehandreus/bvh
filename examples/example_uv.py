@@ -17,18 +17,17 @@ img_size = 800
 
 # ==== Generate rays ==== #
 
-cam_poses, dirs = generate_camera_rays(mesh, img_size)
-
-d_cam_poses = torch.from_numpy(cam_poses).cuda()
-d_dirs = torch.from_numpy(dirs).cuda()
+d_cam_poses, d_dirs = generate_camera_rays(mesh, img_size)
 
 
 # ==== Ray trace ==== #
 
 ray_tracer = GPURayTracer(mesh)
-mask, t, normals, uvs = ray_tracer.trace(d_cam_poses, d_dirs)
-
-print(uvs[uvs.sum(dim=1) != 0])
+result = ray_tracer.trace(d_cam_poses, d_dirs)
+mask = result.mask
+t = result.distance
+normals = result.normals
+uvs = result.uv
 
 mask = mask.cpu().numpy()
 normals = normals.cpu().numpy()

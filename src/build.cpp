@@ -70,13 +70,6 @@ BVHData CPUBuilder::build_bvh(int max_leaf_size) {
     bvh_data.n_leaves = bvh_data.get_n_leaves();
     bvh_data.depth = bvh_data.get_depth();
 
-    for (int i = 0; i < bvh_data.n_nodes; i++) {
-        BVHNode &node = bvh_data.nodes[i];
-        if (node.is_leaf()) continue;
-
-        bvh_data.nodes[node.left()].father = i;
-        bvh_data.nodes[node.right()].father = i;
-    }
 
     return bvh_data;
 }

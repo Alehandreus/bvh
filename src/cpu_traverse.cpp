@@ -1,9 +1,5 @@
 #include "cpu_traverse.h"
 #include "utils.h"
-#include "texture_sample.h"
-
-#define TRAVERSE_EPS 1e-8
-#define TRAVERSE_STACK_SIZE 64
 
 // at the moment cpu and gpu implementations are the same
 // hence this file can be compiled by both nvcc and g++
@@ -58,7 +54,6 @@ CUDA_HOST_DEVICE HitResult ray_query(
             }
 
             if (node_hit.hit && node_hit.t < closest_hit.t) {
-                node_hit.prim_idx = node_hit.prim_idx;
                 closest_hit = node_hit;
             }
         }
@@ -102,23 +97,7 @@ CUDA_HOST_DEVICE HitResult ray_query(
         // Sample texture color
         closest_hit.color = glm::vec3(1.0f);  // Default white
         #ifndef __CUDA_ARCH__  // CPU path
-        if (i_dp.materials && i_dp.textures && i_dp.uvs) {
-            const Face &face = i_dp.faces[closest_hit.prim_idx];
-            if (face.material_idx >= 0) {
-                const Material& mat = i_dp.materials[face.material_idx];
-
-                // Use texture color if available, otherwise use base color
-                if (mat.texture_id >= 0) {
-                    closest_hit.color = sampleTextureCPU(
-                        i_dp.textures[mat.texture_id],
-                        closest_hit.uv.x,
-                        closest_hit.uv.y
-                    );
-                } else {
-                    closest_hit.color = mat.base_color;
-                }
-            }
-        }
+        closest_hit.color = glm::vec3(1.0f, 1.0f, 1.0f);
         #endif
     }
 

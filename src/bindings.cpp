@@ -4,12 +4,9 @@
 #include "cpu_traverse.h"
 #include "material.h"
 
-// #ifdef CUDA_ENABLED
-#include <cuda_runtime.h>
 #include <cuda_runtime.h>
 #include "gpu_traverse.cuh"
 #include "mesh_sampler.cuh"
-// #endif
 
 namespace nb = nanobind;
 
@@ -146,7 +143,6 @@ NB_MODULE(mesh_utils_impl, m) {
         })
     ;
 
-    // #ifdef CUDA_ENABLED
     nb::class_<GPUMeshSampler>(m, "GPUMeshSampler")
         .def(nb::init<const Mesh&, int>(), nb::arg("mesh"), nb::arg("max_points"))
         .def("sample", [](
@@ -260,5 +256,4 @@ NB_MODULE(mesh_utils_impl, m) {
             );
         })
     ;
-    // #endif
 }

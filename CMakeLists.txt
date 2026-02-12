@@ -22,7 +22,6 @@ set(CPU_SOURCES
     src/mesh.cpp
     src/build.cpp
     src/texture_loader.cpp
-    src/texture_sample.cpp
     bvh/src/bvh/v2/c_api/bvh.cpp
 )
 

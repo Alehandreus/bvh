@@ -73,9 +73,6 @@ CUDA_DEVICE glm::vec3 sampleTextureGPU(
     };
 
     return result;
-
-    // do not convert from sRGB to linear
-    // return srgbToLinear(result);
 }
 
 CUDA_GLOBAL void init_rand_state_entry(curandState *states, int n_states) {

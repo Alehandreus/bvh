@@ -280,13 +280,6 @@ public:
         // Compute center and radius
         glm::vec3 c = get_c();
         float R = get_R();
-        // for (auto& v : vertices) c += v;
-        // c /= float(vertices.size());
-        // float R = 0.0f;
-        // for (auto& v : vertices) R = std::max(R, glm::length(v - c));
-        // if (R <= 0.0f) R = 1.0f;
-
-        // c = {c.x, c.z, -c.y};
 
         // Camera: front-right, slightly above, looking at the mesh center
         glm::vec3 eye = c + glm::normalize(glm::vec3(1.0f, 0.35f, 1.0f)) * (2.2f * R);

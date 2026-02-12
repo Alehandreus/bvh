@@ -14,12 +14,6 @@
 
 using std::cout, std::endl;
 
-
-// CUDA_HOST_DEVICE inline float vdot(const glm::vec3 &a, const glm::vec3 &b) {
-//     return a.x * b.x + a.y * b.y + a.z * b.z;
-// }
-
-
 CUDA_HOST_DEVICE inline glm::vec3 vcross(const glm::vec3 &a, const glm::vec3 &b) {
     return glm::vec3{
         a.y * b.z - a.z * b.y,
@@ -190,9 +184,6 @@ CUDA_HOST_DEVICE float box_df(
     const glm::vec3& p,
     const BBox& box
 ) {
-    // glm::vec3 d = glm::max(glm::max(box.min - p, p - box.max), glm::vec3(0.0f));
-    // return glm::length(d);
-
     glm::vec3 d = vmax(
         vmax(vsub(box.min, p), vsub(p, box.max)),
         vzero()
@@ -369,24 +360,4 @@ CUDA_HOST_DEVICE SDFHitResult triangle_sdf(
     }
 
     return out;
-}
-
-int timer(bool start) {
-    static std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
-    if (start) {
-        start_time = std::chrono::high_resolution_clock::now();
-        return 0;
-    }
-
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    return duration.count();
-}
-
-void timer_start() {
-    timer(true);
-}
-
-int timer_stop() {
-    return timer(false);
 }

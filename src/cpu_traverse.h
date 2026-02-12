@@ -1,7 +1,6 @@
 #pragma once
 
 #include <glm/glm.hpp>
-// #include <omp.h>
 
 #include <fstream>
 #include <string>
@@ -10,14 +9,9 @@
 #include <algorithm>
 #include <tuple>
 
-// don't ask me why these are needed for CPU code
-// #include <thrust/host_vector.h>
-// #include <thrust/sort.h>
-// #include <thrust/execution_policy.h>
-
 #include "build.h"
 
-#define TRAVERSE_EPS 0.00001f
+#define TRAVERSE_EPS 1e-8
 #define TRAVERSE_STACK_SIZE 64
 
 struct BVHDataPointers {

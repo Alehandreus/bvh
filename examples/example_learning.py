@@ -12,6 +12,9 @@ from mesh_utils import Mesh, GPURayTracer, generate_camera_rays
 Neural Network training example for predicting vertex colors
 by encoding points using learnable vertex embeddings and a small MLP.
 
+Partially useless since we can just store the colors as vertex attributes 
+and it fails to learn the original texture anyway.
+
 """
 
 
@@ -24,11 +27,11 @@ class Model(nn.Module):
         self.faces = nn.Parameter(torch.from_numpy(mesh.get_faces()).long(), requires_grad=False)
 
         self.net = nn.Sequential(
-            nn.Linear(emb_size, 32),
+            nn.Linear(emb_size, 64),
             nn.ReLU(),
-            nn.Linear(32, 32),
+            nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(32, 3),
+            nn.Linear(64, 3),
             nn.Sigmoid(),
         )
 

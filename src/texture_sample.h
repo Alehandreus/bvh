@@ -34,11 +34,3 @@ struct MaterialDeviceView {
     glm::vec3 base_color;
     int32_t texture_id;
 };
-
-// GPU texture sampling (device function)
-CUDA_DEVICE glm::vec3 sampleTextureGPU(
-    const TextureDeviceView* textures,
-    const MaterialDeviceView* materials,
-    int32_t material_idx,
-    float u, float v
-);

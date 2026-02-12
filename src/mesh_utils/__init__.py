@@ -3,7 +3,7 @@ import numpy as np
 from collections import namedtuple
 from .mesh_utils_impl import Mesh, GPUTraverser, GPUMeshSampler
 
-RayQueryResult = namedtuple('RayQueryResult', ['mask', 'distance', 'normals', 'uv', 'color', 'face_idx'])
+RayQueryResult = namedtuple('RayQueryResult', ['mask', 'distance', 'normals', 'uv', 'color', 'face_idx', 'barycentrics'])
 SampleResult = namedtuple('SampleResult', ['points', 'barycentrics', 'face_indices'])
 
 
@@ -95,12 +95,13 @@ class GPURayTracer:
         """
         n_rays = cam_poses.shape[0]
 
-        face_idxs = torch.zeros((n_rays,),    dtype=torch.uint32,  device="cuda")
-        mask      = torch.zeros((n_rays,),    dtype=torch.bool,    device="cuda")
-        t         = torch.zeros((n_rays,),    dtype=torch.float32, device="cuda") + 1e9
-        normals   = torch.zeros((n_rays, 3),  dtype=torch.float32, device="cuda")
-        uvs       = torch.zeros((n_rays, 2),  dtype=torch.float32, device="cuda")
-        colors    = torch.zeros((n_rays, 3),  dtype=torch.float32, device="cuda")
+        face_idxs     = torch.zeros((n_rays,),    dtype=torch.uint32,  device="cuda")
+        mask          = torch.zeros((n_rays,),    dtype=torch.bool,    device="cuda")
+        t             = torch.zeros((n_rays,),    dtype=torch.float32, device="cuda") + 1e9
+        normals       = torch.zeros((n_rays, 3),  dtype=torch.float32, device="cuda")
+        uvs           = torch.zeros((n_rays, 2),  dtype=torch.float32, device="cuda")
+        colors        = torch.zeros((n_rays, 3),  dtype=torch.float32, device="cuda")
+        barycentrics  = torch.zeros((n_rays, 3),  dtype=torch.float32, device="cuda")
 
         self.bvh_traverser.ray_query(
             cam_poses,
@@ -111,12 +112,13 @@ class GPURayTracer:
             normals,
             uvs,
             colors,
+            barycentrics,
             allow_negative,
             allow_backward,
             allow_forward,
         )
 
-        return RayQueryResult(mask=mask, distance=t, normals=normals, uv=uvs, color=colors, face_idx=face_idxs.long())
+        return RayQueryResult(mask=mask, distance=t, normals=normals, uv=uvs, color=colors, face_idx=face_idxs.long(), barycentrics=barycentrics)
 
 
 class MeshSampler:

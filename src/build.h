@@ -49,8 +49,11 @@ struct BVHNode {
 };
 
 struct BVHData {
-    std::vector<Face> faces;  // Reordered faces for BVH traversal
     std::vector<BVHNode> nodes;
+
+    // Temporary storage for reordered faces during BVH construction.
+    // This will be moved to Mesh::faces in build_bvh_internal().
+    std::vector<Face> reordered_faces;
 
     int depth;
     int n_nodes;

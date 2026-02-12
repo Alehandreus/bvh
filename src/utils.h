@@ -138,15 +138,15 @@ struct HitResult {
     float t;
     uint32_t prim_idx;
     glm::vec3 normal;
-    float bary_u, bary_v;
+    glm::vec3 barycentrics;  // (w, u, v) where w = 1 - u - v
     glm::vec2 uv;
     glm::vec3 color;  // Sampled color (linear RGB)
 
-    CUDA_HOST_DEVICE HitResult() : hit(false), t(0), bary_u(0), bary_v(0), uv(0), color(1.0f) {}
+    CUDA_HOST_DEVICE HitResult() : hit(false), t(0), barycentrics(0.0f), uv(0), color(1.0f) {}
 
-    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t(t), bary_u(0), bary_v(0), uv(0), color(1.0f) {}
+    CUDA_HOST_DEVICE HitResult(bool hit, float t) : hit(hit), t(t), barycentrics(0.0f), uv(0), color(1.0f) {}
 
-    CUDA_HOST_DEVICE HitResult(bool hit, float t, float bary_u, float bary_v) : hit(hit), t(t), bary_u(bary_u), bary_v(bary_v), uv(0), color(1.0f) {}
+    CUDA_HOST_DEVICE HitResult(bool hit, float t, float u, float v) : hit(hit), t(t), barycentrics(1.0f - u - v, u, v), uv(0), color(1.0f) {}
 };
 
 struct HitResults {
@@ -156,6 +156,7 @@ struct HitResults {
     glm::vec3 *normals;
     glm::vec2 *uvs;
     glm::vec3 *colors;
+    glm::vec3 *barycentrics;
 
     CUDA_HOST_DEVICE void fill(int i, HitResult hit) {
         if (masks) masks[i] = hit.hit;
@@ -164,6 +165,7 @@ struct HitResults {
         if (normals) normals[i] = hit.normal;
         if (uvs) uvs[i] = hit.uv;
         if (colors) colors[i] = hit.color;
+        if (barycentrics) barycentrics[i] = hit.barycentrics;
     }
 };
 

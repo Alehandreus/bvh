@@ -55,7 +55,7 @@ struct CPUTraverser {
     BVHDataPointers get_data_pointers() const {
         return {
             mesh.vertices.data(),
-            mesh.bvh->faces.data(),
+            mesh.faces.data(),
             mesh.bvh->nodes.data(),
             mesh.uvs.empty() ? nullptr : mesh.uvs.data(),
             mesh.materials.empty() ? nullptr : mesh.materials.data(),
@@ -76,13 +76,14 @@ struct CPUTraverser {
         glm::vec3 *o_normals,
         glm::vec2 *o_uvs,
         glm::vec3 *o_colors,
+        glm::vec3 *o_barycentrics,
         int n_rays,
         bool allow_negative = false,
         bool allow_backward = true,
         bool allow_forward = true
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults hits = {o_masks, o_t, o_prim_idx, o_normals, o_uvs, o_colors};
+        HitResults hits = {o_masks, o_t, o_prim_idx, o_normals, o_uvs, o_colors, o_barycentrics};
 
         #pragma omp parallel for
         for (int i = 0; i < n_rays; i++) {

@@ -65,7 +65,7 @@ NB_MODULE(mesh_utils_impl, m) {
         .def("get_faces", [](Mesh& self) {
             return nb::ndarray<uint32_t, nb::numpy>(
                 (uint32_t *) self.faces.data(),
-                {self.faces.size(), 3}
+                {self.faces.size(), 4}
             );
         })
         .def("has_uvs", [](Mesh& self) {
@@ -103,6 +103,7 @@ NB_MODULE(mesh_utils_impl, m) {
             h_float3_batch& o_normals,
             h_float2_batch& o_uvs,
             h_float3_batch& o_colors,
+            h_float3_batch& o_barycentrics,
             bool allow_negative,
             bool allow_backward,
             bool allow_forward
@@ -118,6 +119,7 @@ NB_MODULE(mesh_utils_impl, m) {
                 (glm::vec3 *) o_normals.data(),
                 (glm::vec2 *) o_uvs.data(),
                 (glm::vec3 *) o_colors.data(),
+                (glm::vec3 *) o_barycentrics.data(),
                 n_rays,
                 allow_negative,
                 allow_backward,
@@ -125,6 +127,7 @@ NB_MODULE(mesh_utils_impl, m) {
             );
         }, nb::arg("i_ray_origs"), nb::arg("i_ray_vecs"), nb::arg("o_mask"), nb::arg("o_t"),
            nb::arg("o_prim_idx"), nb::arg("o_normals"), nb::arg("o_uvs"), nb::arg("o_colors"),
+           nb::arg("o_barycentrics"),
            nb::arg("allow_negative") = false, nb::arg("allow_backward") = true, nb::arg("allow_forward") = true)
         .def("point_query", [](
             CPUTraverser& self,
@@ -181,6 +184,7 @@ NB_MODULE(mesh_utils_impl, m) {
             d_float3_batch& o_normals,
             d_float2_batch& o_uvs,
             d_float3_batch& o_colors,
+            d_float3_batch& o_barycentrics,
             bool allow_negative,
             bool allow_backward,
             bool allow_forward
@@ -196,6 +200,7 @@ NB_MODULE(mesh_utils_impl, m) {
                 (glm::vec3 *) o_normals.data(),
                 (glm::vec2 *) o_uvs.data(),
                 (glm::vec3 *) o_colors.data(),
+                (glm::vec3 *) o_barycentrics.data(),
                 n_rays,
                 allow_negative,
                 allow_backward,
@@ -203,6 +208,7 @@ NB_MODULE(mesh_utils_impl, m) {
             );
         }, nb::arg("i_ray_origs"), nb::arg("i_ray_vecs"), nb::arg("o_mask"), nb::arg("o_t"),
            nb::arg("o_prim_idx"), nb::arg("o_normals"), nb::arg("o_uvs"), nb::arg("o_colors"),
+           nb::arg("o_barycentrics"),
            nb::arg("allow_negative") = false, nb::arg("allow_backward") = true, nb::arg("allow_forward") = true)
         .def("ray_query_all", [](
             GPUTraverser& self,

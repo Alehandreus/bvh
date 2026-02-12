@@ -60,7 +60,7 @@ struct GPUTraverser {
         }
 
         vertices = mesh.vertices;
-        faces = mesh.bvh->faces;
+        faces = mesh.faces;
         nodes = mesh.bvh->nodes;
         if (!mesh.uvs.empty()) {
             uvs = mesh.uvs;
@@ -120,13 +120,14 @@ struct GPUTraverser {
         glm::vec3 *o_normals,
         glm::vec2 *o_uvs,
         glm::vec3 *o_colors,
+        glm::vec3 *o_barycentrics,
         int n_rays,
         bool allow_negative = false,
         bool allow_backward = true,
         bool allow_forward = true
     ) {
         Rays rays = {i_ray_origs, i_ray_vecs};
-        HitResults hits = {o_masks, o_dists, o_prim_idxs, o_normals, o_uvs, o_colors};
+        HitResults hits = {o_masks, o_dists, o_prim_idxs, o_normals, o_uvs, o_colors, o_barycentrics};
 
         ray_query_entry<<<(n_rays + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(
             rays,

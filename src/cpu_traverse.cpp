@@ -94,10 +94,9 @@ CUDA_HOST_DEVICE HitResult ray_query(
 
         if (i_dp.uvs) {
             const Face &face = i_dp.faces[closest_hit.prim_idx];
-            float w = 1.0f - closest_hit.bary_u - closest_hit.bary_v;
-            closest_hit.uv = w * i_dp.uvs[face.v1]
-                           + closest_hit.bary_u * i_dp.uvs[face.v2]
-                           + closest_hit.bary_v * i_dp.uvs[face.v3];
+            closest_hit.uv = closest_hit.barycentrics.x * i_dp.uvs[face.v1]
+                           + closest_hit.barycentrics.y * i_dp.uvs[face.v2]
+                           + closest_hit.barycentrics.z * i_dp.uvs[face.v3];
         }
 
         // Sample texture color

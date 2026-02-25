@@ -38,15 +38,17 @@ NB_MODULE(mesh_utils_impl, m) {
                                     const char *forward_axis,
                                     float scale,
                                     bool build_bvh,
-                                    int max_leaf_size) {
-            return Mesh(scene_path, up_axis, forward_axis, scale, build_bvh, max_leaf_size);
+                                    int max_leaf_size,
+                                    bool smooth_normals) {
+            return Mesh(scene_path, up_axis, forward_axis, scale, build_bvh, max_leaf_size, smooth_normals);
         }, nb::arg("scene_path"),
            nb::kw_only(),
            nb::arg("up_axis") = "y",
            nb::arg("forward_axis") = "-z",
            nb::arg("scale") = 1.0f,
            nb::arg("build_bvh") = false,
-           nb::arg("max_leaf_size") = 25)
+           nb::arg("max_leaf_size") = 25,
+           nb::arg("smooth_normals") = false)
         .def("get_num_vertices", [](Mesh& self) {
             return self.vertices.size();
         })

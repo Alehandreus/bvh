@@ -46,6 +46,7 @@ struct GPUTraverser {
     const Mesh &mesh;
 
     thrust::device_vector<glm::vec3> vertices;
+    thrust::device_vector<glm::vec3> vertex_normals;
     thrust::device_vector<glm::vec2> uvs;
     thrust::device_vector<Face> faces;
     thrust::device_vector<BVHNode> nodes;
@@ -60,6 +61,9 @@ struct GPUTraverser {
         }
 
         vertices = mesh.vertices;
+        if (!mesh.vertex_normals.empty()) {
+            vertex_normals = mesh.vertex_normals;
+        }
         faces = mesh.faces;
         nodes = mesh.bvh->nodes;
         if (!mesh.uvs.empty()) {
@@ -103,6 +107,7 @@ struct GPUTraverser {
     BVHDataPointers get_data_pointers() const {
         return {
             vertices.data().get(),
+            vertex_normals.empty() ? nullptr : vertex_normals.data().get(),
             faces.data().get(),
             nodes.data().get(),
             uvs.empty() ? nullptr : uvs.data().get(),

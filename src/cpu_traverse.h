@@ -16,6 +16,7 @@
 
 struct BVHDataPointers {
     const glm::vec3 *vertices;
+    const glm::vec3 *vertex_normals;
     const Face *faces;
     const BVHNode *nodes;
     const glm::vec2 *uvs;
@@ -49,6 +50,7 @@ struct CPUTraverser {
     BVHDataPointers get_data_pointers() const {
         return {
             mesh.vertices.data(),
+            mesh.vertex_normals.empty() ? nullptr : mesh.vertex_normals.data(),
             mesh.faces.data(),
             mesh.bvh->nodes.data(),
             mesh.uvs.empty() ? nullptr : mesh.uvs.data(),

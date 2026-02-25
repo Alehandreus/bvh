@@ -1,5 +1,24 @@
 #include "cpu_traverse.h"
 #include "utils.h"
+#include <cmath>
+
+CUDA_HOST_DEVICE glm::vec3 get_shading_normal(const HitResult& hit, const BVHDataPointers& i_dp) {
+    const Face& face = i_dp.faces[hit.prim_idx];
+
+    if (i_dp.vertex_normals) {
+        glm::vec3 n = {
+            hit.barycentrics.x * i_dp.vertex_normals[face.v1].x + hit.barycentrics.y * i_dp.vertex_normals[face.v2].x + hit.barycentrics.z * i_dp.vertex_normals[face.v3].x,
+            hit.barycentrics.x * i_dp.vertex_normals[face.v1].y + hit.barycentrics.y * i_dp.vertex_normals[face.v2].y + hit.barycentrics.z * i_dp.vertex_normals[face.v3].y,
+            hit.barycentrics.x * i_dp.vertex_normals[face.v1].z + hit.barycentrics.y * i_dp.vertex_normals[face.v2].z + hit.barycentrics.z * i_dp.vertex_normals[face.v3].z
+        };
+        float len2 = vdot(n, n);
+        if (len2 > 1e-20f) {
+            return vscale(n, 1.0f / sqrtf(len2));
+        }
+    }
+
+    return ray_triangle_norm(face, i_dp.vertices);
+}
 
 // at the moment cpu and gpu implementations are the same
 // hence this file can be compiled by both nvcc and g++
@@ -85,7 +104,7 @@ CUDA_HOST_DEVICE HitResult ray_query(
     if (!closest_hit.hit) {
         closest_hit.t = 0;
     } else {
-        closest_hit.normal = ray_triangle_norm(i_dp.faces[closest_hit.prim_idx], i_dp.vertices);
+        closest_hit.normal = get_shading_normal(closest_hit, i_dp);
 
         if (i_dp.uvs) {
             const Face &face = i_dp.faces[closest_hit.prim_idx];

@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <limits>
+#include <cmath>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -75,11 +76,13 @@ inline glm::mat3 build_transform_matrix(Axis src_up, Axis src_forward) {
 
 struct Mesh {
     std::vector<glm::vec3> vertices;
+    std::vector<glm::vec3> vertex_normals;
     std::vector<glm::vec2> uvs;
     std::vector<Face> faces;
     std::vector<Material> materials;
     std::vector<Texture> textures;
     std::unique_ptr<BVHData> bvh;
+    bool smooth_normals = false;
 
     Mesh(
         const char *scene_path,
@@ -87,8 +90,10 @@ struct Mesh {
         const char *forward_axis = "-z",
         float scale = 1.0f,
         bool build_bvh = false,
-        int max_leaf_size = 25
+        int max_leaf_size = 25,
+        bool smooth_normals = false
     ) {
+        this->smooth_normals = smooth_normals;
         Assimp::Importer importer;
         unsigned int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_PreTransformVertices;
         const aiScene *scene = importer.ReadFile(scene_path, flags);
@@ -98,6 +103,7 @@ struct Mesh {
         }
 
         vertices.clear();
+        vertex_normals.clear();
         faces.clear();
 
         // Load materials and textures
@@ -208,17 +214,57 @@ struct Mesh {
             }
         }
 
+        if (this->smooth_normals) {
+            compute_vertex_normals();
+        }
+
         // Build BVH if requested (implementation requires build.h include at end of file)
         if (build_bvh) {
             build_bvh_internal(max_leaf_size);
         }
     }
 
-    Mesh(const std::vector<glm::vec3> vertices, const std::vector<Face> faces, const std::vector<glm::vec2> uvs = {})
-        : vertices(std::move(vertices)), faces(std::move(faces)), uvs(std::move(uvs)) {}
+    Mesh(
+        const std::vector<glm::vec3> vertices,
+        const std::vector<Face> faces,
+        const std::vector<glm::vec2> uvs = {},
+        bool smooth_normals = false
+    )
+        : vertices(std::move(vertices)),
+          faces(std::move(faces)),
+          uvs(std::move(uvs)),
+          smooth_normals(smooth_normals) {
+        if (this->smooth_normals) {
+            compute_vertex_normals();
+        }
+    }
 
 private:
     void build_bvh_internal(int max_leaf_size);
+
+    void compute_vertex_normals() {
+        vertex_normals.assign(vertices.size(), glm::vec3(0.0f));
+
+        for (const Face& face : faces) {
+            const glm::vec3& v0 = vertices[face.v1];
+            const glm::vec3& v1 = vertices[face.v2];
+            const glm::vec3& v2 = vertices[face.v3];
+
+            const glm::vec3 face_n = glm::cross(v1 - v0, v2 - v0);
+            vertex_normals[face.v1] += face_n;
+            vertex_normals[face.v2] += face_n;
+            vertex_normals[face.v3] += face_n;
+        }
+
+        for (size_t i = 0; i < vertex_normals.size(); i++) {
+            const float len2 = glm::dot(vertex_normals[i], vertex_normals[i]);
+            if (len2 > 1e-20f) {
+                vertex_normals[i] *= 1.0f / std::sqrt(len2);
+            } else {
+                vertex_normals[i] = glm::vec3(0.0f);
+            }
+        }
+    }
 
 public:
     void print_stats() {

@@ -182,6 +182,9 @@ Used in both `cpu_traverse.cpp` and `gpu_traverse.cu` via a common inlined funct
 - `allow_forward` / `allow_backward` flags for front/back-face culling.
 - Single-hit variant: tracks closest `t` and overwrites on improvement.
 - All-hit variant: stores all intersections and sorts by `t` (insertion sort on GPU).
+- Returned normal behavior:
+  - Default (`smooth_normals=false`): flat face normal from triangle cross product.
+  - Smooth mode (`smooth_normals=true`): precompute per-vertex normals once at mesh load, then barycentrically interpolate and normalize at hit time.
 
 ### GPU Texture Sampling (`gpu_traverse.cu`)
 
@@ -225,7 +228,8 @@ Bilinear texture sampling:
 
 ### `mesh.h / mesh.cpp`
 
-- `Mesh::from_file(path, up_axis, forward_axis)` — Load mesh via Assimp; extract geometry, materials, textures.
+- `Mesh::from_file(path, up_axis, forward_axis, scale, build_bvh, max_leaf_size, smooth_normals)` — Load mesh via Assimp; extract geometry/materials/textures; optionally precompute smooth vertex normals.
+- `Mesh::compute_vertex_normals()` — Area-weighted vertex normal accumulation: for each face, add `cross(v1-v0, v2-v0)` to its 3 vertices, then normalize each vertex sum.
 - `Mesh::build_bvh_internal()` — Delegate to `CPUBuilder`; store result in `bvh_data_`.
 - `Mesh::get_bvh()` — Lazy-build BVH on first call; return `BVHData&`.
 - `Mesh::bounds()` → `BBox` — Axis-aligned bounding box of all vertices.
@@ -264,10 +268,10 @@ Bilinear texture sampling:
 nanobind module `mesh_utils_impl` exposing four classes to Python:
 
 - **`Mesh`**
-  - `.from_file(path, up_axis, forward_axis)` — Class method; load from disk.
+  - `.from_file(path, *, up_axis="y", forward_axis="-z", scale=1.0, build_bvh=False, max_leaf_size=25, smooth_normals=False)` — Class method; load from disk.
   - `.vertices` → `ndarray(N,3,f32)` — All vertex positions.
   - `.faces` → `ndarray(M,3,i32)` — Triangle index triplets.
-  - `.normals` → `ndarray(N,3,f32)` — Per-vertex normals.
+  - Smooth normals are returned by ray queries only when `smooth_normals=True`; default is flat face normals.
   - `.uvs` → `ndarray(N,2,f32)` — Per-vertex UVs.
   - `.save_preview(path, w, h)` — Render orthographic preview PNG.
   - `.save_to_obj(path)` — Export geometry as OBJ.
@@ -324,7 +328,7 @@ Per-mesh device buffers (allocated in `GPUTraverser`):
 | Buffer | Type | Contents |
 |--------|------|---------|
 | `d_vertices` | `vec3[]` | Vertex positions |
-| `d_normals` | `vec3[]` | Per-vertex normals |
+| `d_vertex_normals` | `vec3[]` | Optional per-vertex normals (present when `smooth_normals=true`) |
 | `d_uvs` | `vec2[]` | Per-vertex UVs |
 | `d_faces` | `Face[]` | Triangle indices + material ID |
 | `d_nodes` | `BVHNode[]` | BVH tree nodes (flat array) |

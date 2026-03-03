@@ -9,7 +9,7 @@
 // #include "build.h"
 #include "mesh.h"
 
-BVHData CPUBuilder::build_bvh(int max_leaf_size) {
+BVHData build_bvh(const std::vector<glm::vec3>& vertices, const std::vector<Face>& faces, int max_leaf_size) {
     using LibVec3 = bvh::v2::Vec<float, 3>;
     using LibBBox = bvh::v2::BBox<float, 3>;
     using LibTri  = bvh::v2::Tri<float, 3>;

@@ -99,8 +99,10 @@ struct BVHData {
 private:
     BVHData() {}
 
-    friend class CPUBuilder;
+    friend BVHData build_bvh(const std::vector<glm::vec3>&, const std::vector<Face>&, int);
 };
+
+BVHData build_bvh(const std::vector<glm::vec3>& vertices, const std::vector<Face>& faces, int max_leaf_size);
 
 
 enum class Axis { X, Y, Z, NEG_X, NEG_Y, NEG_Z };
@@ -505,16 +507,3 @@ public:
     }
 };
 
-struct CPUBuilder {
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec2> uvs;
-    std::vector<Face> faces;
-    std::vector<Material> materials;
-    std::vector<Texture> textures;
-
-    CPUBuilder(const Mesh &mesh) : vertices(mesh.vertices), uvs(mesh.uvs), faces(mesh.faces),
-                                     materials(mesh.materials), textures(mesh.textures) {}
-
-    BVHData build_bvh(int max_leaf_size);
-    void split_node(BVHData & bvh, uint32_t node, int cur_depth, int max_depth);
-};

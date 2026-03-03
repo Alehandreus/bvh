@@ -49,8 +49,8 @@ bvh/
 │   ├── material.h              # Material + Texture structs
 │   ├── texture_sample.h        # CPU bilinear texture sampling
 │   ├── texture_loader.h/.cpp   # stb_image loader (PNG/JPG + embedded GLTF)
-│   ├── build.h / build.cpp     # BVH construction (SAH via madmann91/bvh)
-│   ├── mesh.h / mesh.cpp       # Mesh loading, BVH access, preview rendering
+│   ├── build.cpp               # BVH construction (SAH via madmann91/bvh)
+│   ├── mesh.h / mesh.cpp       # Mesh loading, BVH/CPUBuilder structs, preview rendering
 │   ├── cpu_traverse.h/.cpp     # CPU ray/SDF queries (OpenMP)
 │   ├── gpu_traverse.cuh/.cu    # GPU ray/SDF queries (CUDA)
 │   ├── mesh_sampler.cuh/.cu    # GPU uniform surface sampler
@@ -108,20 +108,29 @@ struct SDFHitResult {
 };
 ```
 
-### BVH (`build.h`)
+### BVH (`mesh.h`)
+
+`BVHNode` and `BVHData` are defined in `mesh.h`. BVH construction is a free function in `build.cpp`.
 
 ```cpp
 struct BVHNode {
     BBox bbox;
-    int left_child, right_child;   // -1 for leaves
-    int face_start, face_count;    // leaf face range
+    uint32_t left_first_prim;   // left child index (internal) or first prim index (leaf)
+    uint32_t n_prims;           // 0 = internal node, >0 = leaf with n_prims triangles
+
+    bool is_leaf() const { return n_prims > 0; }
+    uint32_t left() const { return left_first_prim; }
+    uint32_t right() const { return left_first_prim + 1; }
 };
 
 struct BVHData {
     std::vector<BVHNode> nodes;
     std::vector<Face> reordered_faces;   // sorted to BVH leaf order
-    int max_depth, leaf_count;
+    int depth, n_nodes, n_leaves;
 };
+
+BVHData build_bvh(const std::vector<glm::vec3>& vertices,
+                  const std::vector<Face>& faces, int max_leaf_size);
 ```
 
 ### Material / Texture (`material.h`)
@@ -211,9 +220,9 @@ Bilinear texture sampling:
 - `box_df(point, bbox)` → `float` — Distance from point to AABB surface (0 if inside).
 - `triangle_sdf(point, v0, v1, v2, n)` → `(dist, u, v)` — Signed distance from point to triangle with closest barycentric coords.
 
-### `build.h / build.cpp`
+### `build.cpp`
 
-- `CPUBuilder::build_bvh(vertices, faces)` → `BVHData` — SAH BVH construction via madmann91/bvh.
+- `build_bvh(vertices, faces, max_leaf_size)` → `BVHData` — SAH BVH construction via madmann91/bvh. Takes const references; no data is copied.
 - `BVHData::save_to_obj(path)` — Write each BVH leaf AABB as an OBJ wireframe for debugging.
 
 ### `texture_loader.h / texture_loader.cpp`
@@ -237,6 +246,10 @@ Bilinear texture sampling:
 - `Mesh::get_R()` → `float` — Bounding sphere radius.
 - `Mesh::save_preview(path, width, height)` — Software rasterizer: orthographic projection + depth test → PNG.
 - `Mesh::save_to_obj(path)` — Export raw geometry as OBJ.
+- `Mesh::vertices_memory_bytes()` → `uint32_t` — Bytes used by vertex position array.
+- `Mesh::faces_memory_bytes()` → `uint32_t` — Bytes used by face index array.
+- `Mesh::bvh_memory_bytes()` → `uint32_t` — Bytes used by BVH node array (0 if BVH not built).
+- `Mesh::vertices_faces_bvh_memory_bytes()` → `uint32_t` — Sum of the three above.
 
 ### `cpu_traverse.h / cpu_traverse.cpp`
 
@@ -275,6 +288,10 @@ nanobind module `mesh_utils_impl` exposing four classes to Python:
   - `.uvs` → `ndarray(N,2,f32)` — Per-vertex UVs.
   - `.save_preview(path, w, h)` — Render orthographic preview PNG.
   - `.save_to_obj(path)` — Export geometry as OBJ.
+  - `.vertices_memory_bytes()` → `int` — CPU memory used by vertex positions.
+  - `.faces_memory_bytes()` → `int` — CPU memory used by face indices.
+  - `.bvh_memory_bytes()` → `int` — CPU memory used by BVH nodes (0 if not built).
+  - `.vertices_faces_bvh_memory_bytes()` → `int` — Total of the three above.
 
 - **`CPUTraverser`**
   - `.ray_query(origins, directions)` → dict of arrays — Closest hit for each ray.
@@ -285,8 +302,8 @@ nanobind module `mesh_utils_impl` exposing four classes to Python:
   - `.ray_query_all(origins, directions, max_hits)` → dict of arrays — All hits, sorted.
   - `.point_query(points)` → dict of arrays — GPU SDF batch.
 
-- **`GPUMeshSampler`**
-  - `.sample()` → `(points, barycentrics, face_ids)` — Uniform surface sample batch.
+- **`GPUSampler`** (previously `MeshSampler`)
+  - `.sample()` → `(points, barycentrics, face_ids)` — Uniform surface sample batch; `face_ids` are `int64`.
 
 All array inputs/outputs are NumPy-compatible; GPU results are copied to CPU before returning.
 

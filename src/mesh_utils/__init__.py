@@ -121,7 +121,7 @@ class GPURayTracer:
         return RayQueryResult(mask=mask, distance=t, normals=normals, uv=uvs, color=colors, face_idx=face_idxs.long(), barycentrics=barycentrics)
 
 
-class MeshSampler:
+class GPUSampler:
     def __init__(self, mesh, max_points=100000):
         """Initialize mesh sampler.
 
@@ -155,4 +155,4 @@ class MeshSampler:
         # Sample
         self.sampler.sample(points, barycentrics, face_indices, n_points)
 
-        return SampleResult(points=points, barycentrics=barycentrics, face_indices=face_indices)
+        return SampleResult(points=points, barycentrics=barycentrics, face_indices=face_indices.long())

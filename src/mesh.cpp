@@ -1,5 +1,5 @@
 #include "mesh.h"
-#include "build.h"
+// #include "build.h"
 
 void Mesh::build_bvh_internal(int max_leaf_size) {
     // Create builder from current mesh state

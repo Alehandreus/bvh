@@ -6,7 +6,8 @@
 #include <bvh/v2/tri.h>
 #include <bvh/v2/vec.h>
 
-#include "build.h"
+// #include "build.h"
+#include "mesh.h"
 
 BVHData CPUBuilder::build_bvh(int max_leaf_size) {
     using LibVec3 = bvh::v2::Vec<float, 3>;

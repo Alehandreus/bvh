@@ -1,13 +1,13 @@
 import torch
 
-from mesh_utils import Mesh, MeshSampler
+from mesh_utils import Mesh, GPUSampler
 
 
 n_points = 50000
 
 mesh = Mesh.from_file("suzanne.fbx", up_axis="y", forward_axis="-z", build_bvh=True)
 
-sampler = MeshSampler(mesh, max_points=n_points)
+sampler = GPUSampler(mesh, max_points=n_points)
 result = sampler.sample(n_points)
 
 print(f"Sampled {n_points} points")

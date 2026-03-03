@@ -88,6 +88,10 @@ NB_MODULE(mesh_utils_impl, m) {
                 h_float3(&max).cast()
             );
         })
+        .def("vertices_memory_bytes", &Mesh::vertices_memory_bytes)
+        .def("faces_memory_bytes", &Mesh::faces_memory_bytes)
+        .def("bvh_memory_bytes", &Mesh::bvh_memory_bytes)
+        .def("vertices_faces_bvh_memory_bytes", &Mesh::vertices_faces_bvh_memory_bytes)
     ;
 
     nb::class_<CPUTraverser>(m, "CPUTraverser")

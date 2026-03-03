@@ -9,7 +9,8 @@
 #include <algorithm>
 #include <tuple>
 
-#include "build.h"
+// #include "build.h"
+#include "mesh.h"
 
 #define TRAVERSE_EPS 1e-8
 #define TRAVERSE_STACK_SIZE 64

@@ -8,8 +8,12 @@ from mesh_utils import Mesh, GPURayTracer, generate_camera_rays
 
 # ==== Load mesh and buld BVH ==== #
 
-mesh = Mesh.from_file("/home/me/Downloads/shrek.glb", build_bvh=True)
+mesh = Mesh.from_file("/home/me/Downloads/shrek.glb", build_bvh=True, max_leaf_size=5, smooth_normals=True)
 print(f"Mesh loaded: {mesh.get_num_vertices()} vertices, {mesh.get_num_faces()} faces")
+print(f"Vertices memory: {mesh.vertices_memory_bytes() / 1e6:.2f} MB")
+print(f"Faces memory: {mesh.faces_memory_bytes() / 1e6:.2f} MB")
+print(f"BVH memory: {mesh.bvh_memory_bytes() / 1e6:.2f} MB")
+print(f"Total memory: {mesh.vertices_faces_bvh_memory_bytes() / 1e6:.2f} MB")
 
 # quick rasterization to visualize the mesh
 mesh.save_preview("mesh_preview.png")
@@ -25,6 +29,8 @@ distance = result.distance
 normals = result.normals
 colors = result.color
 y = d_cam_poses + d_dirs * distance[:, None]
+
+print(normals[mask].mean(), normals[mask].std())
 
 
 # ==== Shade and Save ==== #
